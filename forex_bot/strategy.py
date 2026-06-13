@@ -188,11 +188,12 @@ def _validate(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) -> bool:
         logger.debug("%s: insufficient 4H data (%s candles)", pair,
                      len(df_4h) if df_4h is not None else 0)
         return False
-    if ind.data_quality_score(df_1h) < 1.0 or ind.data_quality_score(df_4h) < 1.0:
-        logger.warning("%s: data quality check failed", pair)
+    if ind.data_quality_score(df_1h) < 0.6 or ind.data_quality_score(df_4h) < 0.6:
+        logger.debug("%s: data quality check failed", pair)
         return False
     zero_vol = (df_1h["volume"] == 0).sum()
-    if zero_vol > len(df_1h) * 0.05:
+    if zero_vol > len(df_1h) * 0.10:
+        logger.debug("%s: too many zero-volume bars (%d)", pair, zero_vol)
         return False
     return True
 
@@ -220,21 +221,25 @@ def generate_signal(pair: str,
     # ── Gate 1: 4H market structure ──────────────────────────────────────────
     direction = _gate_structure(df_4h)
     if direction == 0:
+        logger.debug("%s: Gate 1 fail — no clear 4H structure", pair)
         return None
 
     # ── Gate 2: price at 4H point of interest ────────────────────────────────
     poi_ok, poi_zone, poi_label = _gate_poi(df_4h, df_1h, direction)
     if not poi_ok:
+        logger.debug("%s: Gate 2 fail — price not at OB/FVG", pair)
         return None
 
     # ── Gate 3: killzone + liquidity sweep ───────────────────────────────────
     timing_ok, timing_reasons = _gate_timing(df_1h, direction)
     if not timing_ok:
+        logger.debug("%s: Gate 3 fail — no killzone or sweep", pair)
         return None
 
     # ── Gate 4: momentum ─────────────────────────────────────────────────────
     mom_ok, mom_reasons = _gate_momentum(df_1h, direction)
     if not mom_ok:
+        logger.debug("%s: Gate 4 fail — momentum not aligned", pair)
         return None
 
     # ── SL: just beyond the POI zone ─────────────────────────────────────────

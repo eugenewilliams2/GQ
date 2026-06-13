@@ -168,14 +168,19 @@ def find_order_blocks(df: pd.DataFrame, direction: int,
 
 
 def _ob_mitigated(data: pd.DataFrame, zone: dict, from_idx: int, direction: int) -> bool:
-    """Return True if price has already traded back into the order block zone."""
+    """
+    Return True only when the zone is fully consumed — price traded clean through it.
+    Bullish OB: mitigated when any future low goes below the OB's LOW (zone destroyed).
+    Bearish OB: mitigated when any future high goes above the OB's HIGH (zone destroyed).
+    Price re-entering the zone without breaking through = still valid (the trade setup).
+    """
     if from_idx >= len(data):
         return False
     future = data.iloc[from_idx:]
     if direction == 1:
-        return (future["low"] < zone["high"]).any()
+        return (future["low"] < zone["low"]).any()
     else:
-        return (future["high"] > zone["low"]).any()
+        return (future["high"] > zone["high"]).any()
 
 
 def find_fair_value_gaps(df: pd.DataFrame, direction: int,
