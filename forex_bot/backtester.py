@@ -156,4 +156,10 @@ def run_backtest(
 
     result = BacktestResult(portfolio, equity_curve)
     logger.info("Backtest complete.\n%s", result)
+
+    from forex_bot.html_report import save_report
+    mode = "aggressive" if config.ACTIVE_PROFILE is config.PROFILES.get("aggressive") else "safe"
+    rpt  = save_report(portfolio, equity_curve, mode, "backtest_report.html")
+    logger.info("HTML report saved → %s", rpt)
+
     return result
