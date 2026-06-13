@@ -106,22 +106,25 @@ def swing_points(df: pd.DataFrame, n: int = 5) -> tuple[pd.Series, pd.Series]:
 
 def market_structure_bias(df: pd.DataFrame, n: int = 5) -> int:
     """
-    Higher-timeframe bias via Break of Structure (BOS) / Change of Character (CHoCH).
-    Bullish = HH + HL pattern. Bearish = LH + LL pattern.
+    Higher-timeframe bias via Break of Structure (BOS).
+    Bullish = most recent swing high AND swing low are both higher than previous.
+    Bearish = most recent swing high AND swing low are both lower than previous.
     Returns  1 (bullish), -1 (bearish), 0 (unclear / choppy).
+
+    Uses 2-point confirmation (last vs previous swing) rather than 3, which
+    is still a valid BOS signal and fires frequently enough on real 4H data.
     """
     sh, sl = swing_points(df, n)
     swing_highs = sh.dropna().values
     swing_lows  = sl.dropna().values
 
-    if len(swing_highs) < 3 or len(swing_lows) < 3:
+    if len(swing_highs) < 2 or len(swing_lows) < 2:
         return 0
 
-    # Check last 3 swings for consistency
-    hh = all(swing_highs[-i] > swing_highs[-(i+1)] for i in range(1, 3))
-    hl = all(swing_lows[-i]  > swing_lows[-(i+1)]  for i in range(1, 3))
-    lh = all(swing_highs[-i] < swing_highs[-(i+1)] for i in range(1, 3))
-    ll = all(swing_lows[-i]  < swing_lows[-(i+1)]  for i in range(1, 3))
+    hh = swing_highs[-1] > swing_highs[-2]
+    hl = swing_lows[-1]  > swing_lows[-2]
+    lh = swing_highs[-1] < swing_highs[-2]
+    ll = swing_lows[-1]  < swing_lows[-2]
 
     if hh and hl: return 1
     if lh and ll: return -1
