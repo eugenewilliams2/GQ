@@ -1,10 +1,14 @@
 """
 Event-driven backtester — replays history with the ICT 4-gate strategy.
-Uses 4H data for structure/bias and 1H data for entry timing.
+Uses 4H data (resampled from 1H) for structure/bias and 1H data for entry timing.
+
+Note: Yahoo Finance has no native 4h interval and only serves 1h data for the
+trailing ~730 days, so we fetch 1h and resample to 4h, clamping the start date.
 """
 
 import logging
 import warnings
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -13,22 +17,46 @@ from forex_bot.portfolio import Portfolio
 
 logger = logging.getLogger(__name__)
 
+_YF_INTRADAY_MAX_DAYS = 730
+
 
 def _clean(df: pd.DataFrame, pair: str) -> pd.DataFrame | None:
     """Flatten MultiIndex columns (new yfinance) and select OHLCV."""
     if df is None or df.empty:
         return None
     if isinstance(df.columns, pd.MultiIndex):
-        # yfinance >=0.2.40: columns are (field, ticker) — drop the ticker level
-        df = df.xs(pair, axis=1, level=1) if pair in df.columns.get_level_values(1) \
+        lvl1 = df.columns.get_level_values(1)
+        df = df.xs(pair, axis=1, level=1) if pair in set(lvl1) \
              else df.droplevel(1, axis=1)
-    df.columns = [c.lower() for c in df.columns]
+    df.columns = [str(c).lower() for c in df.columns]
     needed = {"open", "high", "low", "close", "volume"}
     if not needed.issubset(df.columns):
         return None
     df = df[["open", "high", "low", "close", "volume"]].dropna()
     df.index = pd.to_datetime(df.index, utc=True)
     return df if not df.empty else None
+
+
+def _resample_4h(df: pd.DataFrame) -> pd.DataFrame:
+    return df.resample("4h").agg({
+        "open": "first", "high": "max", "low": "min",
+        "close": "last", "volume": "sum",
+    }).dropna()
+
+
+def _clamp_start(start: str) -> str:
+    """Yahoo only serves 1h data for the trailing ~730 days — clamp the start."""
+    earliest = datetime.now(timezone.utc) - timedelta(days=_YF_INTRADAY_MAX_DAYS - 2)
+    try:
+        requested = pd.to_datetime(start, utc=True)
+    except Exception:
+        return earliest.strftime("%Y-%m-%d")
+    if requested < earliest:
+        logger.warning(
+            "Start %s is beyond Yahoo's 1h limit — clamping to %s",
+            start, earliest.strftime("%Y-%m-%d"))
+        return earliest.strftime("%Y-%m-%d")
+    return start
 
 
 class BacktestResult:
@@ -71,7 +99,8 @@ def run_backtest(
     portfolio = Portfolio()
     equity_curve: list[float] = []
 
-    logger.info("Downloading backtest data: %s → %s", start, end)
+    start = _clamp_start(start)
+    logger.info("Downloading 1H backtest data: %s → %s", start, end)
     raw_1h: dict[str, pd.DataFrame] = {}
     raw_4h: dict[str, pd.DataFrame] = {}
 
@@ -80,16 +109,11 @@ def run_backtest(
             warnings.simplefilter("ignore")
             df1 = yf.download(pair, start=start, end=end,
                               interval="1h", auto_adjust=True, progress=False)
-            df4 = yf.download(pair, start=start, end=end,
-                              interval="4h", auto_adjust=True, progress=False)
 
         df1 = _clean(df1, pair)
-        df4 = _clean(df4, pair)
-
         if df1 is not None:
             raw_1h[pair] = df1
-        if df4 is not None:
-            raw_4h[pair] = df4
+            raw_4h[pair] = _resample_4h(df1)   # derive 4h locally
 
         logger.info("  %s  1H=%s  4H=%s",
                     pair,
@@ -99,9 +123,9 @@ def run_backtest(
     if not raw_1h:
         logger.error(
             "No data fetched for any pair.\n"
-            "  • Make sure yfinance is installed: pip install -U yfinance\n"
+            "  • Update yfinance:  pip install -U yfinance\n"
             "  • Check your internet connection\n"
-            "  • Yahoo Finance sometimes rate-limits — wait a minute and retry"
+            "  • Yahoo Finance rate-limits — wait 30-60s and retry"
         )
         return BacktestResult(portfolio, [])
 

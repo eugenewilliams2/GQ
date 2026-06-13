@@ -56,15 +56,18 @@ KILLZONES = {
 }
 
 # ── Data / scheduling ─────────────────────────────────────────────────────
-CANDLE_INTERVAL_LTF = "1h"    # lower timeframe — entry timing
-CANDLE_INTERVAL_HTF = "4h"    # higher timeframe — bias / structure
+# NOTE: Yahoo Finance has no native 4h interval and only serves 1h data for
+# the trailing ~730 days. We fetch 1h and resample to 4h locally.
+CANDLE_INTERVAL_LTF = "1h"    # lower timeframe — entry timing (fetched from Yahoo)
+CANDLE_INTERVAL_HTF = "4h"    # higher timeframe — bias / structure (resampled from 1h)
 CANDLE_LOOKBACK_LTF = "60d"
-CANDLE_LOOKBACK_HTF = "180d"  # 6 months of 4H data for reliable structure
+CANDLE_LOOKBACK_HTF = "180d"  # 6 months of 1h → plenty of 4H structure
 SCAN_INTERVAL_S     = 60
 
 # ── Backtesting ────────────────────────────────────────────────────────────
-BACKTEST_START    = "2024-01-01"
-BACKTEST_END      = "2025-06-01"   # yfinance 1H data reliably available up to ~6 months ago
+# Start is auto-clamped to Yahoo's 730-day 1h limit if set earlier.
+BACKTEST_START    = "2025-01-01"
+BACKTEST_END      = "2026-06-01"
 BACKTEST_INTERVAL = "1h"
 
 # ── Logging ────────────────────────────────────────────────────────────────
