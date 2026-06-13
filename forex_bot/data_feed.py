@@ -1,10 +1,8 @@
 """
-Market data fetching via yfinance.
-Returns OHLCV DataFrames ready for indicator calculation.
+Market data — OHLCV fetcher with multi-timeframe (HTF + LTF) support.
 """
 
 import logging
-from datetime import datetime
 
 import pandas as pd
 import yfinance as yf
@@ -14,46 +12,65 @@ from forex_bot import config
 logger = logging.getLogger(__name__)
 
 
-def fetch_ohlcv(pair: str,
-                period: str  = config.CANDLE_LOOKBACK,
-                interval: str = config.CANDLE_INTERVAL) -> pd.DataFrame:
-    """
-    Download OHLCV data for one forex pair.
-    Returns a clean DataFrame with columns: open high low close volume.
-    Returns None if download fails.
-    """
+def _download(ticker: str, period: str, interval: str) -> pd.DataFrame | None:
     try:
-        ticker = yf.Ticker(pair)
-        df = ticker.history(period=period, interval=interval, auto_adjust=True)
+        t  = yf.Ticker(ticker)
+        df = t.history(period=period, interval=interval, auto_adjust=True)
         if df.empty:
-            logger.warning("No data returned for %s", pair)
+            logger.warning("No data for %s", ticker)
             return None
         df.columns = [c.lower() for c in df.columns]
-        df = df[["open", "high", "low", "close", "volume"]].copy()
+        df = df[["open", "high", "low", "close", "volume"]].dropna()
         df.index = pd.to_datetime(df.index, utc=True)
-        df.dropna(inplace=True)
         return df
     except Exception as exc:
-        logger.error("fetch_ohlcv(%s): %s", pair, exc)
+        logger.error("fetch(%s): %s", ticker, exc)
         return None
 
 
-def fetch_all_pairs(pairs: list[str] = config.PAIRS,
-                    period: str = config.CANDLE_LOOKBACK,
-                    interval: str = config.CANDLE_INTERVAL) -> dict[str, pd.DataFrame]:
-    """Fetch OHLCV for every pair in the list. Returns {pair: DataFrame}."""
-    results = {}
-    for pair in pairs:
-        df = fetch_ohlcv(pair, period=period, interval=interval)
+def fetch_ohlcv(pair: str,
+                period: str   = config.CANDLE_LOOKBACK_LTF,
+                interval: str = config.CANDLE_INTERVAL_LTF) -> pd.DataFrame | None:
+    return _download(pair, period, interval)
+
+
+def fetch_all_pairs(pairs: list[str] = config.PAIRS) -> dict[str, pd.DataFrame]:
+    """Fetch LTF (1H) data for all pairs."""
+    out = {}
+    for p in pairs:
+        df = fetch_ohlcv(p)
         if df is not None:
-            results[pair] = df
-            logger.debug("Fetched %d candles for %s", len(df), pair)
-    return results
+            out[p] = df
+    return out
 
 
-def get_current_price(pair: str) -> float | None:
-    """Return the most recent close price for a pair."""
-    df = fetch_ohlcv(pair, period="5d", interval="1h")
-    if df is not None and not df.empty:
-        return float(df["close"].iloc[-1])
-    return None
+def fetch_all_pairs_mtf(
+    pairs: list[str] = config.PAIRS,
+) -> tuple[dict[str, pd.DataFrame], dict[str, pd.DataFrame]]:
+    """
+    Fetch both timeframes for all pairs.
+    Returns (ltf_data, htf_data) where:
+      ltf = 1H candles (entry timing)
+      htf = 4H candles (market structure / bias)
+    """
+    ltf, htf = {}, {}
+    for p in pairs:
+        df_l = _download(p, config.CANDLE_LOOKBACK_LTF, config.CANDLE_INTERVAL_LTF)
+        df_h = _download(p, config.CANDLE_LOOKBACK_HTF, config.CANDLE_INTERVAL_HTF)
+        if df_l is not None: ltf[p] = df_l
+        if df_h is not None: htf[p] = df_h
+        if df_l is not None or df_h is not None:
+            logger.debug("%s  LTF=%s  HTF=%s",
+                         p,
+                         len(df_l) if df_l is not None else "—",
+                         len(df_h) if df_h is not None else "—")
+    return ltf, htf
+
+
+def fetch_dxy(period: str = "60d") -> pd.DataFrame | None:
+    """
+    US Dollar Index — used as intermarket confluence filter only.
+    Research note: DXY has structural bias (EUR = 57.6% weight) so treated
+    as confluence, NOT a leading indicator (claim was adversarially refuted).
+    """
+    return _download("DX-Y.NYB", period, "1d")
