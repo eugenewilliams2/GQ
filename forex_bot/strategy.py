@@ -104,7 +104,10 @@ def _gate_timing(df_1h: pd.DataFrame, direction: int) -> tuple[bool, list[str]]:
     profile = config.ACTIVE_PROFILE
     passed  = []
 
-    kz_ok, kz_name = ind.in_killzone()
+    # Use the bar's own timestamp so backtests check historical killzones,
+    # not the wall-clock time at the moment the backtest is running.
+    bar_ts = df_1h.index[-1].to_pydatetime()
+    kz_ok, kz_name = ind.in_killzone(bar_ts)
     if kz_ok:
         passed.append(f"Killzone: {kz_name}")
     elif profile["require_killzone"]:
@@ -270,7 +273,7 @@ def generate_signal(pair: str,
         + timing_reasons
         + mom_reasons
     )
-    _, kz_name = ind.in_killzone()
+    _, kz_name = ind.in_killzone(df_1h.index[-1].to_pydatetime())
 
     logger.info(
         "SIGNAL %s %s @ %.5f  SL=%.5f  TP=%.5f  R:R=%.1f  strength=%.0f%%  [%s]",
