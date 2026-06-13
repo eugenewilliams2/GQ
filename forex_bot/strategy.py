@@ -1,17 +1,9 @@
 """
-Trading strategy engine — triple-confirmation system.
+Triple-gate signal engine — thresholds driven by the active risk profile.
 
-A trade is only opened when ALL THREE gates pass:
-
-  Gate 1 — TREND   : ADX > 25, EMA structure aligned, DEMA direction matches
-  Gate 2 — MOMENTUM: RSI in range, MACD aligned, Stochastic %K/%D aligned, CCI in zone
-  Gate 3 — ENTRY   : Bollinger squeeze break, Keltner channel, candlestick pattern,
-                     OBV rising (long) / falling (short), volume expanding
-
-Signal values:
-    1  = BUY
-   -1  = SELL
-    0  = NO SIGNAL
+Gate 1 — TREND    : ADX, DEMA+EMA structure, DI alignment
+Gate 2 — MOMENTUM : RSI, MACD, Stochastic, CCI
+Gate 3 — ENTRY    : Bollinger Band, Keltner, candlestick, OBV+volume
 """
 
 import logging
@@ -25,38 +17,28 @@ logger = logging.getLogger(__name__)
 
 MIN_CANDLES = max(
     config.EMA_SLOW, config.BB_PERIOD, config.RSI_PERIOD, 50
-) + 10   # warm-up buffer
+) + 10
 
 
 @dataclass
 class Signal:
     pair:        str
-    direction:   int          # 1 buy / -1 sell / 0 none
+    direction:   int
     price:       float
     stop_loss:   float
     take_profit: float
     reason:      str
-    strength:    float = 0.0  # 0–1 composite confidence
+    strength:    float = 0.0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Gate 1 — TREND CONFIRMATION
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Gate 1: Trend ─────────────────────────────────────────────────────────
 
 def _gate_trend(df: pd.DataFrame) -> int:
-    """
-    Returns 1 (bullish trend), -1 (bearish trend), or 0 (no trend / inconclusive).
-    Requires:
-      - ADX > 25 (trending, not ranging)
-      - +DI > -DI for long; -DI > +DI for short
-      - DEMA fast > DEMA slow for long; reversed for short
-      - EMA fast > EMA slow for long; reversed for short
-    """
+    profile  = config.ACTIVE_PROFILE
     adx_val, di_pos, di_neg = indicators.adx(
         df["high"], df["low"], df["close"], config.ATR_PERIOD
     )
-    if adx_val.iloc[-1] < 25:
-        logger.debug("ADX too low (%.1f) — no trend", adx_val.iloc[-1])
+    if adx_val.iloc[-1] < profile["adx_min"]:
         return 0
 
     fast_dema = indicators.dema(df["close"], config.EMA_FAST)
@@ -65,234 +47,168 @@ def _gate_trend(df: pd.DataFrame) -> int:
     slow_ema  = indicators.ema(df["close"],  config.EMA_SLOW)
 
     bullish = (
-        di_pos.iloc[-1]  > di_neg.iloc[-1]
+        di_pos.iloc[-1]      > di_neg.iloc[-1]
         and fast_dema.iloc[-1] > slow_dema.iloc[-1]
         and fast_ema.iloc[-1]  > slow_ema.iloc[-1]
     )
     bearish = (
-        di_neg.iloc[-1]  > di_pos.iloc[-1]
+        di_neg.iloc[-1]      > di_pos.iloc[-1]
         and fast_dema.iloc[-1] < slow_dema.iloc[-1]
         and fast_ema.iloc[-1]  < slow_ema.iloc[-1]
     )
-
-    if bullish:
-        return 1
-    if bearish:
-        return -1
+    if bullish: return 1
+    if bearish: return -1
     return 0
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Gate 2 — MOMENTUM CONFIRMATION
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Gate 2: Momentum ──────────────────────────────────────────────────────
 
 def _gate_momentum(df: pd.DataFrame, direction: int) -> tuple[bool, list[str]]:
-    """
-    Returns (passed, list_of_confirmations).
-    Requires at least 3 of 4 momentum sub-checks.
-    """
+    needed = config.ACTIVE_PROFILE["momentum_needed"]
     passed = []
 
-    # 2a. RSI — not overbought on buy, not oversold on sell
     rsi_val = indicators.rsi(df["close"], config.RSI_PERIOD).iloc[-1]
-    if direction == 1 and 40 < rsi_val < config.RSI_OVERBOUGHT:
-        passed.append(f"RSI {rsi_val:.0f} bullish")
+    if direction == 1  and 40 < rsi_val < config.RSI_OVERBOUGHT:
+        passed.append(f"RSI {rsi_val:.0f}")
     elif direction == -1 and config.RSI_OVERSOLD < rsi_val < 60:
-        passed.append(f"RSI {rsi_val:.0f} bearish")
+        passed.append(f"RSI {rsi_val:.0f}")
 
-    # 2b. MACD histogram aligned and crossing
     _, _, hist = indicators.macd(
         df["close"], config.MACD_FAST, config.MACD_SLOW, config.MACD_SIGNAL
     )
-    macd_aligned  = (direction == 1 and hist.iloc[-1] > 0) or \
-                    (direction == -1 and hist.iloc[-1] < 0)
-    macd_crossing = (direction == 1  and hist.iloc[-2] < 0 and hist.iloc[-1] > 0) or \
-                    (direction == -1 and hist.iloc[-2] > 0 and hist.iloc[-1] < 0)
-    if macd_aligned:
-        passed.append("MACD aligned" + (" (crossing)" if macd_crossing else ""))
+    if (direction == 1 and hist.iloc[-1] > 0) or (direction == -1 and hist.iloc[-1] < 0):
+        label = "MACD" + (" cross" if (
+            (direction == 1  and hist.iloc[-2] < 0)
+            or (direction == -1 and hist.iloc[-2] > 0)
+        ) else "")
+        passed.append(label)
 
-    # 2c. Stochastic %K/%D crossover in correct zone
     k, d = indicators.stochastic(df["high"], df["low"], df["close"])
-    stoch_k, stoch_d = k.iloc[-1], d.iloc[-1]
-    if direction == 1 and stoch_k < 80 and stoch_k > stoch_d and k.iloc[-2] <= d.iloc[-2]:
-        passed.append(f"Stoch %K/{stoch_k:.0f} bullish cross")
-    elif direction == -1 and stoch_k > 20 and stoch_k < stoch_d and k.iloc[-2] >= d.iloc[-2]:
-        passed.append(f"Stoch %K/{stoch_k:.0f} bearish cross")
+    if direction == 1  and k.iloc[-1] < 80 and k.iloc[-1] > d.iloc[-1] and k.iloc[-2] <= d.iloc[-2]:
+        passed.append(f"Stoch cross {k.iloc[-1]:.0f}")
+    elif direction == -1 and k.iloc[-1] > 20 and k.iloc[-1] < d.iloc[-1] and k.iloc[-2] >= d.iloc[-2]:
+        passed.append(f"Stoch cross {k.iloc[-1]:.0f}")
 
-    # 2d. CCI alignment
     cci_val = indicators.cci(df["high"], df["low"], df["close"]).iloc[-1]
     if direction == 1  and 0 < cci_val < 200:
-        passed.append(f"CCI {cci_val:.0f} bullish")
+        passed.append(f"CCI {cci_val:.0f}")
     elif direction == -1 and -200 < cci_val < 0:
-        passed.append(f"CCI {cci_val:.0f} bearish")
+        passed.append(f"CCI {cci_val:.0f}")
 
-    return len(passed) >= 3, passed
+    return len(passed) >= needed, passed
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Gate 3 — ENTRY / PRICE-ACTION CONFIRMATION
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Gate 3: Entry / price action ──────────────────────────────────────────
 
 def _gate_entry(df: pd.DataFrame, direction: int) -> tuple[bool, list[str]]:
-    """
-    Returns (passed, list_of_confirmations).
-    Requires at least 2 of 4 entry sub-checks.
-    """
+    needed = config.ACTIVE_PROFILE["entry_needed"]
     passed = []
 
-    # 3a. Bollinger Band — price near the band being tested
     upper, mid, lower = indicators.bollinger_bands(
         df["close"], config.BB_PERIOD, config.BB_STD
     )
-    price = df["close"].iloc[-1]
+    price    = df["close"].iloc[-1]
     bb_width = (upper.iloc[-1] - lower.iloc[-1]) / mid.iloc[-1]
     if direction == 1  and price <= lower.iloc[-1] * 1.001:
-        passed.append("BB lower touch")
+        passed.append("BB lower")
     elif direction == -1 and price >= upper.iloc[-1] * 0.999:
-        passed.append("BB upper touch")
-    elif bb_width > 0.003:                          # breakout mode: wide band
-        if direction == 1  and price > mid.iloc[-1]:
-            passed.append("BB breakout long")
-        elif direction == -1 and price < mid.iloc[-1]:
-            passed.append("BB breakout short")
+        passed.append("BB upper")
+    elif bb_width > 0.003:
+        if direction == 1  and price > mid.iloc[-1]: passed.append("BB breakout ↑")
+        elif direction == -1 and price < mid.iloc[-1]: passed.append("BB breakout ↓")
 
-    # 3b. Keltner channel alignment
     kc_upper, kc_mid, kc_lower = indicators.keltner_channel(
         df["high"], df["low"], df["close"]
     )
-    if direction == 1  and price > kc_mid.iloc[-1]:
-        passed.append("Keltner bullish")
-    elif direction == -1 and price < kc_mid.iloc[-1]:
-        passed.append("Keltner bearish")
+    if direction == 1  and price > kc_mid.iloc[-1]: passed.append("Keltner ↑")
+    elif direction == -1 and price < kc_mid.iloc[-1]: passed.append("Keltner ↓")
 
-    # 3c. Candlestick pattern
     if direction == 1:
         if indicators.bullish_engulfing(df["open"], df["close"]).iloc[-1]:
-            passed.append("Bullish engulfing")
+            passed.append("Engulfing ↑")
         elif indicators.is_pin_bar(df["open"], df["high"], df["low"], df["close"], 1).iloc[-1]:
-            passed.append("Bullish pin bar")
+            passed.append("Pin bar ↑")
     else:
         if indicators.bearish_engulfing(df["open"], df["close"]).iloc[-1]:
-            passed.append("Bearish engulfing")
+            passed.append("Engulfing ↓")
         elif indicators.is_pin_bar(df["open"], df["high"], df["low"], df["close"], -1).iloc[-1]:
-            passed.append("Bearish pin bar")
+            passed.append("Pin bar ↓")
 
-    # 3d. Volume — OBV direction + expanding volume
     obv_series = indicators.obv(df["close"], df["volume"])
     vol_osc    = indicators.volume_oscillator(df["volume"])
-    obv_rising = obv_series.iloc[-1] > obv_series.iloc[-3]
+    obv_up     = obv_series.iloc[-1] > obv_series.iloc[-3]
     vol_expand = vol_osc.iloc[-1] > 0
+    if direction == 1  and obv_up    and vol_expand: passed.append("OBV ↑ vol+")
+    elif direction == -1 and not obv_up and vol_expand: passed.append("OBV ↓ vol+")
 
-    if direction == 1  and obv_rising and vol_expand:
-        passed.append("OBV rising + vol expanding")
-    elif direction == -1 and not obv_rising and vol_expand:
-        passed.append("OBV falling + vol expanding")
-
-    return len(passed) >= 2, passed
+    return len(passed) >= needed, passed
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Data validation before ANY analysis
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Data validation ───────────────────────────────────────────────────────
 
 def _validate_data(pair: str, df: pd.DataFrame) -> bool:
-    """Hard reject bad data before running any indicator."""
     if df is None or len(df) < MIN_CANDLES:
-        logger.debug("%s: insufficient candles (%s)", pair, len(df) if df is not None else 0)
         return False
-
-    quality = indicators.data_quality_score(df)
-    if quality < 1.0:
-        logger.warning("%s: data quality score %.2f — skipping", pair, quality)
+    if indicators.data_quality_score(df) < 1.0:
+        logger.warning("%s: data quality check failed — skipped", pair)
         return False
-
-    # Reject zero-volume candles (stale / weekend data)
     zero_vol = (df["volume"] == 0).sum()
-    if zero_vol > len(df) * 0.05:   # >5% zero-volume bars
-        logger.warning("%s: %d zero-volume bars — skipping", pair, zero_vol)
+    if zero_vol > len(df) * 0.05:
+        logger.warning("%s: >5%% zero-volume bars — skipped", pair)
         return False
-
-    # Reject if spread (high-low) is degenerate
-    avg_spread = (df["high"] - df["low"]).mean()
-    if avg_spread < 1e-6:
-        logger.warning("%s: degenerate spread — skipping", pair)
+    if (df["high"] - df["low"]).mean() < 1e-6:
         return False
-
     return True
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Composite signal generator
-# ══════════════════════════════════════════════════════════════════════════════
+# ── Composite signal ──────────────────────────────────────────────────────
 
 def generate_signal(pair: str, df: pd.DataFrame) -> Signal | None:
-    """
-    Triple-gate confirmation.
-    All three gates must pass; strength is computed from sub-check density.
-    """
     if not _validate_data(pair, df):
         return None
 
+    profile  = config.ACTIVE_PROFILE
     pip      = indicators.pip_value(pair)
     atr_val  = float(indicators.atr(df["high"], df["low"], df["close"],
                                     config.ATR_PERIOD).iloc[-1])
     price    = float(df["close"].iloc[-1])
 
-    # ── Gate 1: trend ────────────────────────────────────────────────────────
     direction = _gate_trend(df)
     if direction == 0:
         return None
 
-    # ── Gate 2: momentum ─────────────────────────────────────────────────────
     mom_ok, mom_reasons = _gate_momentum(df, direction)
     if not mom_ok:
-        logger.debug("%s: momentum gate failed (%d/4)", pair, len(mom_reasons))
         return None
 
-    # ── Gate 3: entry / price action ─────────────────────────────────────────
     entry_ok, entry_reasons = _gate_entry(df, direction)
     if not entry_ok:
-        logger.debug("%s: entry gate failed (%d/4)", pair, len(entry_reasons))
         return None
 
-    # ── All gates passed — build signal ──────────────────────────────────────
     all_reasons = (
-        [f"{'BUY' if direction==1 else 'SELL'} trend confirmed"]
-        + mom_reasons
-        + entry_reasons
+        [f"{'BUY' if direction==1 else 'SELL'} trend (ADX confirmed)"]
+        + mom_reasons + entry_reasons
     )
-    strength = round((len(mom_reasons)/4 + len(entry_reasons)/4) / 2, 2)
+    strength = round((len(mom_reasons) / 4 + len(entry_reasons) / 4) / 2, 2)
 
-    sl_dist = max(config.STOP_LOSS_PIPS   * pip, atr_val * 1.5)
-    tp_dist = max(config.TAKE_PROFIT_PIPS * pip, atr_val * 3.0)
+    if strength < profile["min_strength"]:
+        logger.debug("%s: strength %.0f%% below threshold — skipped", pair, strength * 100)
+        return None
 
-    if direction == 1:
-        stop_loss, take_profit = price - sl_dist, price + tp_dist
-    else:
-        stop_loss, take_profit = price + sl_dist, price - tp_dist
+    sl_dist = max(profile["stop_loss_pips"]   * pip, atr_val * 1.5)
+    tp_dist = max(profile["take_profit_pips"] * pip, atr_val * 3.0)
 
-    logger.info(
-        "SIGNAL %s %s @ %.5f  strength=%.0f%%  [%s]",
-        "BUY" if direction == 1 else "SELL", pair, price,
-        strength * 100, " | ".join(all_reasons),
-    )
+    stop_loss   = price - sl_dist if direction == 1 else price + sl_dist
+    take_profit = price + tp_dist if direction == 1 else price - tp_dist
 
     return Signal(
-        pair        = pair,
-        direction   = direction,
-        price       = price,
-        stop_loss   = stop_loss,
-        take_profit = take_profit,
-        reason      = " | ".join(all_reasons),
-        strength    = strength,
+        pair=pair, direction=direction, price=price,
+        stop_loss=stop_loss, take_profit=take_profit,
+        reason=" | ".join(all_reasons), strength=strength,
     )
 
 
 def scan_pairs(data: dict[str, pd.DataFrame]) -> list[Signal]:
-    signals = []
-    for pair, df in data.items():
-        sig = generate_signal(pair, df)
-        if sig:
-            signals.append(sig)
-    signals.sort(key=lambda s: s.strength, reverse=True)
-    return signals
+    signals = [s for pair, df in data.items()
+               if (s := generate_signal(pair, df)) is not None]
+    return sorted(signals, key=lambda s: s.strength, reverse=True)
