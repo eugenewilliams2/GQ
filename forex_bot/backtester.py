@@ -4,6 +4,7 @@ Uses 4H data for structure/bias and 1H data for entry timing.
 """
 
 import logging
+import warnings
 
 import pandas as pd
 
@@ -11,6 +12,23 @@ from forex_bot import config, strategy
 from forex_bot.portfolio import Portfolio
 
 logger = logging.getLogger(__name__)
+
+
+def _clean(df: pd.DataFrame, pair: str) -> pd.DataFrame | None:
+    """Flatten MultiIndex columns (new yfinance) and select OHLCV."""
+    if df is None or df.empty:
+        return None
+    if isinstance(df.columns, pd.MultiIndex):
+        # yfinance >=0.2.40: columns are (field, ticker) — drop the ticker level
+        df = df.xs(pair, axis=1, level=1) if pair in df.columns.get_level_values(1) \
+             else df.droplevel(1, axis=1)
+    df.columns = [c.lower() for c in df.columns]
+    needed = {"open", "high", "low", "close", "volume"}
+    if not needed.issubset(df.columns):
+        return None
+    df = df[["open", "high", "low", "close", "volume"]].dropna()
+    df.index = pd.to_datetime(df.index, utc=True)
+    return df if not df.empty else None
 
 
 class BacktestResult:
@@ -53,34 +71,42 @@ def run_backtest(
     portfolio = Portfolio()
     equity_curve: list[float] = []
 
-    logger.info("Downloading 1H backtest data: %s → %s", start, end)
+    logger.info("Downloading backtest data: %s → %s", start, end)
     raw_1h: dict[str, pd.DataFrame] = {}
     raw_4h: dict[str, pd.DataFrame] = {}
 
     for pair in pairs:
-        df1 = yf.download(pair, start=start, end=end,
-                          interval="1h", auto_adjust=True, progress=False)
-        df4 = yf.download(pair, start=start, end=end,
-                          interval="4h", auto_adjust=True, progress=False)
-        for df, store in [(df1, raw_1h), (df4, raw_4h)]:
-            if df.empty:
-                continue
-            df.columns = [c.lower() for c in df.columns]
-            df = df[["open","high","low","close","volume"]].dropna()
-            df.index = pd.to_datetime(df.index, utc=True)
-            store[pair] = df
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            df1 = yf.download(pair, start=start, end=end,
+                              interval="1h", auto_adjust=True, progress=False)
+            df4 = yf.download(pair, start=start, end=end,
+                              interval="4h", auto_adjust=True, progress=False)
 
-        logger.info("  %s  1H=%d  4H=%d",
+        df1 = _clean(df1, pair)
+        df4 = _clean(df4, pair)
+
+        if df1 is not None:
+            raw_1h[pair] = df1
+        if df4 is not None:
+            raw_4h[pair] = df4
+
+        logger.info("  %s  1H=%s  4H=%s",
                     pair,
-                    len(raw_1h.get(pair, [])),
-                    len(raw_4h.get(pair, [])))
+                    len(raw_1h[pair]) if pair in raw_1h else "NO DATA",
+                    len(raw_4h[pair]) if pair in raw_4h else "NO DATA")
 
     if not raw_1h:
-        logger.error("No data fetched — aborting.")
+        logger.error(
+            "No data fetched for any pair.\n"
+            "  • Make sure yfinance is installed: pip install -U yfinance\n"
+            "  • Check your internet connection\n"
+            "  • Yahoo Finance sometimes rate-limits — wait a minute and retry"
+        )
         return BacktestResult(portfolio, [])
 
     all_ts = sorted(set().union(*[set(df.index) for df in raw_1h.values()]))
-    logger.info("Replaying %d timestamps…", len(all_ts))
+    logger.info("Replaying %d timestamps across %d pairs…", len(all_ts), len(raw_1h))
 
     for ts in all_ts:
         slices_1h, slices_4h, prices = {}, {}, {}

@@ -64,7 +64,7 @@ SCAN_INTERVAL_S     = 60
 
 # ── Backtesting ────────────────────────────────────────────────────────────
 BACKTEST_START    = "2024-01-01"
-BACKTEST_END      = "2025-12-31"
+BACKTEST_END      = "2025-06-01"   # yfinance 1H data reliably available up to ~6 months ago
 BACKTEST_INTERVAL = "1h"
 
 # ── Logging ────────────────────────────────────────────────────────────────
