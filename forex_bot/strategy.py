@@ -72,10 +72,15 @@ def _gate_structure(df_4h: pd.DataFrame) -> int:
 def _gate_poi(df_4h: pd.DataFrame, df_1h: pd.DataFrame,
               direction: int) -> tuple[bool, dict | None, str]:
     """
-    Price must be inside an unmitigated 4H order block OR a 4H fair value gap.
-    Uses the 1H close as the 'current price' for the check.
+    Price must be at a 4H point of interest — checked in priority order:
+      1. Unmitigated order block
+      2. Fair value gap (3-candle imbalance)
+      3. Swing zone: price within 0.5 ATR of the most recent swing low (bull)
+         or swing high (bear) — the ICT "premium/discount" concept
     """
-    price = float(df_1h["close"].iloc[-1])
+    price  = float(df_1h["close"].iloc[-1])
+    atr_4h = float(ind.atr(df_4h["high"], df_4h["low"],
+                            df_4h["close"], config.ATR_PERIOD).iloc[-1])
 
     obs  = ind.find_order_blocks(df_4h, direction)
     fvgs = ind.find_fair_value_gaps(df_4h, direction)
@@ -87,6 +92,26 @@ def _gate_poi(df_4h: pd.DataFrame, df_1h: pd.DataFrame,
         return True, ob_zone, "4H Order Block"
     if in_fvg:
         return True, fvg_zone, "4H FVG"
+
+    # Fallback: near the most recent swing low (bullish) or swing high (bearish)
+    sh, sl = ind.swing_points(df_4h, config.SWING_LOOKBACK)
+    if direction == 1:
+        recent_lows = sl.dropna()
+        if not recent_lows.empty:
+            nearest = float(recent_lows.iloc[-1])
+            if abs(price - nearest) <= atr_4h * 0.5:
+                zone = {"low": nearest - atr_4h * 0.3,
+                        "high": nearest + atr_4h * 0.3}
+                return True, zone, "4H Swing Low Zone"
+    else:
+        recent_highs = sh.dropna()
+        if not recent_highs.empty:
+            nearest = float(recent_highs.iloc[-1])
+            if abs(price - nearest) <= atr_4h * 0.5:
+                zone = {"low": nearest - atr_4h * 0.3,
+                        "high": nearest + atr_4h * 0.3}
+                return True, zone, "4H Swing High Zone"
+
     return False, None, ""
 
 

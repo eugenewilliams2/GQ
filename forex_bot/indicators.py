@@ -132,13 +132,15 @@ def market_structure_bias(df: pd.DataFrame, n: int = 5) -> int:
 
 
 def find_order_blocks(df: pd.DataFrame, direction: int,
-                      lookback: int = 80) -> list[dict]:
+                      lookback: int = 100) -> list[dict]:
     """
     ICT Order Blocks:
-      Bullish OB = last bearish candle before a strong bullish impulse move
-      Bearish OB = last bullish candle before a strong bearish impulse move
+      Bullish OB = last bearish candle before a bullish impulse move
+      Bearish OB = last bullish candle before a bearish impulse move
 
-    Only returns unmitigated OBs (price hasn't returned to them since).
+    The impulse just needs to close in the right direction — removing the
+    'bigger than OB range' condition which almost never fires on real 4H data.
+    Only returns unmitigated OBs (price hasn't broken clean through them).
     """
     obs  = []
     data = df.tail(lookback).reset_index(drop=True)
@@ -146,28 +148,23 @@ def find_order_blocks(df: pd.DataFrame, direction: int,
     for i in range(1, len(data) - 1):
         c = data.iloc
         if direction == 1:
-            is_ob_candle  = c[i]["close"] < c[i]["open"]           # bearish candle
-            impulse_next  = c[i+1]["close"] > c[i+1]["open"]       # followed by bullish
-            strong_move   = (c[i+1]["close"] - c[i+1]["open"]) > \
-                            (c[i]["high"] - c[i]["low"])            # bigger than OB body
-            if is_ob_candle and impulse_next and strong_move:
+            is_ob_candle = c[i]["close"] < c[i]["open"]      # bearish candle
+            impulse_next = c[i+1]["close"] > c[i+1]["open"]  # followed by bullish
+            if is_ob_candle and impulse_next:
                 zone = {"high": c[i]["high"], "low": c[i]["low"],
                         "idx": i, "type": "bullish_ob"}
-                # unmitigated = price never dipped below OB high after the move
                 if not _ob_mitigated(data, zone, i + 2, direction):
                     obs.append(zone)
         else:
-            is_ob_candle  = c[i]["close"] > c[i]["open"]
-            impulse_next  = c[i+1]["close"] < c[i+1]["open"]
-            strong_move   = (c[i+1]["open"] - c[i+1]["close"]) > \
-                            (c[i]["high"] - c[i]["low"])
-            if is_ob_candle and impulse_next and strong_move:
+            is_ob_candle = c[i]["close"] > c[i]["open"]      # bullish candle
+            impulse_next = c[i+1]["close"] < c[i+1]["open"]  # followed by bearish
+            if is_ob_candle and impulse_next:
                 zone = {"high": c[i]["high"], "low": c[i]["low"],
                         "idx": i, "type": "bearish_ob"}
                 if not _ob_mitigated(data, zone, i + 2, direction):
                     obs.append(zone)
 
-    return obs[-5:]   # keep the 5 most recent unmitigated OBs
+    return obs[-8:]   # keep the 8 most recent unmitigated OBs
 
 
 def _ob_mitigated(data: pd.DataFrame, zone: dict, from_idx: int, direction: int) -> bool:
