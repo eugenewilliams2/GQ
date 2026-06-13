@@ -217,7 +217,7 @@ def _validate(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) -> bool:
         logger.debug("%s: data quality check failed", pair)
         return False
     zero_vol = (df_1h["volume"] == 0).sum()
-    if zero_vol > len(df_1h) * 0.10:
+    if zero_vol > len(df_1h) * 0.60:
         logger.debug("%s: too many zero-volume bars (%d)", pair, zero_vol)
         return False
     return True
