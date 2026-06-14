@@ -1,0 +1,79 @@
+{
+  "strategy": "ml",
+  "interval": "1d",
+  "aggressive": true,
+  "balance": 10000.0,
+  "peak": 10000.0,
+  "open": {
+    "EURUSD=X": {
+      "pair": "EURUSD=X",
+      "dir": 1,
+      "entry": 1.157344,
+      "stop": 1.145378,
+      "target": 1.175117,
+      "units": 25071,
+      "opened_at": "2026-06-12T00:00:00+00:00"
+    },
+    "GBPUSD=X": {
+      "pair": "GBPUSD=X",
+      "dir": -1,
+      "entry": 1.340718,
+      "stop": 1.354531,
+      "target": 1.320173,
+      "units": 21550,
+      "opened_at": "2026-06-14T00:00:00+00:00"
+    },
+    "USDJPY=X": {
+      "pair": "USDJPY=X",
+      "dir": 1,
+      "entry": 160.191998,
+      "stop": 159.384312,
+      "target": 161.386026,
+      "units": 371,
+      "opened_at": "2026-06-14T00:00:00+00:00"
+    },
+    "USDCHF=X": {
+      "pair": "USDCHF=X",
+      "dir": 1,
+      "entry": 0.79647,
+      "stop": 0.787017,
+      "target": 0.810475,
+      "units": 31735,
+      "opened_at": "2026-06-14T00:00:00+00:00"
+    },
+    "USDCAD=X": {
+      "pair": "USDCAD=X",
+      "dir": 1,
+      "entry": 1.39897,
+      "stop": 1.388114,
+      "target": 1.41508,
+      "units": 20813,
+      "opened_at": "2026-06-14T00:00:00+00:00"
+    },
+    "NZDUSD=X": {
+      "pair": "NZDUSD=X",
+      "dir": -1,
+      "entry": 0.583463,
+      "stop": 0.593247,
+      "target": 0.568961,
+      "units": 30661,
+      "opened_at": "2026-06-14T00:00:00+00:00"
+    }
+  },
+  "closed": [],
+  "history": [
+    {
+      "t": "2026-06-14T18:23:27+00:00",
+      "balance": 10000.0,
+      "equity": 9988.31,
+      "open": 6
+    },
+    {
+      "t": "2026-06-14T18:23:29+00:00",
+      "balance": 10000.0,
+      "equity": 9988.31,
+      "open": 6
+    }
+  ],
+  "created": "2026-06-14T18:23:25+00:00"
+}

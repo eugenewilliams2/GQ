@@ -89,7 +89,9 @@ def main() -> None:
     _add_source_args(pr)
 
     pp = sub.add_parser("paper", help="forward paper-trade a strategy (simulated)")
-    pp.add_argument("--strategy", "-s", choices=list(REGISTRY), default="fvg")
+    pp.add_argument("--strategy", "-s", choices=list(REGISTRY) + ["ml"], default="fvg")
+    pp.add_argument("--name", help="session name (separate state file; omit for default)")
+    pp.add_argument("--aggressive", action="store_true", help="conviction-scaled sizing (ml)")
     pp.add_argument("--reset", action="store_true", help="start a fresh paper session")
     pp.add_argument("--status", action="store_true", help="show state without ticking")
     _add_source_args(pp)
@@ -151,13 +153,15 @@ def main() -> None:
     elif args.cmd == "paper":
         from forex_bot import paper
         if args.reset:
-            paper.reset(args.strategy, args.interval)
-            print(f"new paper session: {args.strategy} on {args.interval} (start $10,000)")
+            paper.reset(args.strategy, args.interval, name=args.name, aggressive=args.aggressive)
+            agg = " aggressive" if args.aggressive else ""
+            print(f"new paper session '{args.name or 'default'}': {args.strategy}{agg} "
+                  f"on {args.interval} (start $10,000)")
         if args.status:
-            st = paper.load_state()
+            st = paper.load_state(args.name)
             print(paper.render(st) if st else "no paper session — run with --reset")
         else:
-            st = paper.tick(source=args.source)
+            st = paper.tick(source=args.source, name=args.name)
             print(paper.render(st))
     elif args.cmd == "dashboard":
         from forex_bot import dashboard, paper

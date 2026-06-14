@@ -12,3 +12,4 @@ backtest_report.html
 data/
 dashboard.html
 paper_state.json
+paper_state_*.json

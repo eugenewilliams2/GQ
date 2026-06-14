@@ -26,43 +26,53 @@ from forex_bot.costs import CostModel
 from forex_bot.datasource import get_source
 from forex_bot.compare import REGISTRY
 
-STATE_PATH = os.path.join(os.path.dirname(__file__), os.pardir, ".paper_state.json")
+_DIR = os.path.join(os.path.dirname(__file__), os.pardir)
 _RECENT_BARS = {"1d": 800, "4h": 1500, "1h": 1500, "1wk": 400}
 
 
-# ── State ─────────────────────────────────────────────────────────────────────
+# ── State (named sessions; default name=None keeps the original files) ─────────
 
-def _new_state(strategy: str, interval: str, balance: float) -> dict:
-    return {"strategy": strategy, "interval": interval, "balance": balance,
-            "peak": balance, "open": {}, "closed": [], "history": [], "created": _now()}
+def _paths(name: str | None) -> tuple[str, str]:
+    """Return (tracked dotfile, servable non-dot copy) for a session name."""
+    if name is None:
+        return os.path.join(_DIR, ".paper_state.json"), os.path.join(_DIR, "paper_state.json")
+    return (os.path.join(_DIR, f".paper_state_{name}.json"),
+            os.path.join(_DIR, f"paper_state_{name}.json"))
+
+
+def _new_state(strategy: str, interval: str, balance: float, aggressive: bool) -> dict:
+    return {"strategy": strategy, "interval": interval, "aggressive": aggressive,
+            "balance": balance, "peak": balance, "open": {}, "closed": [],
+            "history": [], "created": _now()}
 
 
 def _now() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
-def load_state() -> dict | None:
-    if not os.path.exists(STATE_PATH):
+def load_state(name: str | None = None) -> dict | None:
+    path, _ = _paths(name)
+    if not os.path.exists(path):
         return None
-    with open(STATE_PATH) as f:
+    with open(path) as f:
         return json.load(f)
 
 
-def save_state(st: dict) -> None:
-    with open(STATE_PATH, "w") as f:
+def save_state(st: dict, name: str | None = None) -> None:
+    path, servable = _paths(name)
+    with open(path, "w") as f:
         json.dump(st, f, indent=2)
-    # also write a non-dot copy the local web dashboard can fetch
-    servable = os.path.join(os.path.dirname(STATE_PATH), "paper_state.json")
     try:
-        with open(servable, "w") as f:
+        with open(servable, "w") as f:        # non-dot copy for the web dashboard
             json.dump(st, f)
     except OSError:
         pass
 
 
-def reset(strategy: str, interval: str, balance: float = 10_000.0) -> dict:
-    st = _new_state(strategy, interval, balance)
-    save_state(st)
+def reset(strategy: str, interval: str, balance: float = 10_000.0,
+          name: str | None = None, aggressive: bool = False) -> dict:
+    st = _new_state(strategy, interval, balance, aggressive)
+    save_state(st, name)
     return st
 
 
@@ -82,23 +92,56 @@ def _fetch_recent(pairs, source: str, interval: str) -> dict[str, pd.DataFrame]:
     return out
 
 
+# ── Entry-signal generation (rule-based vs neural net) ────────────────────────
+
+def _ml_latest_signal(df, aggressive: bool, thr: float = 0.06):
+    """Train the NN on all history up to the prior bar and score the latest bar
+    (causal: today's label is never used). Returns a StratSignal or None."""
+    import numpy as np
+    from forex_bot.ml import build_features, build_labels, MLP, MLStrategy, WARMUP
+    X, _ = build_features(df)
+    y = build_labels(df, 1)
+    n = len(df)
+    rows = np.arange(WARMUP, n - 1)
+    rows = rows[np.isfinite(X[rows]).all(1) & np.isfinite(y[rows])]
+    if len(rows) < 150 or not np.isfinite(X[n - 1]).all():
+        return None
+    net = MLP([X.shape[1], 24, 12, 1]).fit(X[rows], y[rows])
+    preds = np.full(n, np.nan)
+    preds[n - 1] = net.predict_proba(X[n - 1:n])[0]
+    strat = MLStrategy(preds, thr=thr, aggressive=aggressive)
+    strat.prepare(df)
+    return strat.signal_at(n - 1)
+
+
+def _latest_signal(st, pair, df):
+    """Dispatch to the session's strategy for a signal on the newest bar."""
+    if st["strategy"] == "ml":
+        return _ml_latest_signal(df, aggressive=st.get("aggressive", False))
+    cls, _ = REGISTRY[st["strategy"]]
+    if len(df) < cls().warmup() + 2:
+        return None
+    strat = cls()
+    strat.prepare(df)
+    return strat.signal_at(len(df) - 1)
+
+
 # ── Tick ──────────────────────────────────────────────────────────────────────
 
 def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
-         risk_cfg: risk_mod.RiskConfig | None = None) -> dict:
-    st = load_state()
+         risk_cfg: risk_mod.RiskConfig | None = None, name: str | None = None) -> dict:
+    st = load_state(name)
     if st is None:
         raise RuntimeError("no paper session — run `paper --reset` first")
     cost = cost or CostModel()
     risk_cfg = risk_cfg or risk_mod.RiskConfig(risk_per_trade=0.01, max_leverage=30)
     pairs = pairs or config.PAIRS
-    cls, _ = REGISTRY[st["strategy"]]
     interval = st["interval"]
 
     data = _fetch_recent(pairs, source, interval)
     if not data:
         st["history"].append({"t": _now(), "note": "no data fetched"})
-        save_state(st)
+        save_state(st, name)
         return st
 
     # 1) manage open positions against bars since they opened
@@ -132,18 +175,17 @@ def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
 
     # 2) look for new entries on the latest bar (flat pairs only)
     for pair, df in data.items():
-        if pair in st["open"] or len(df) < cls().warmup() + 2:
+        if pair in st["open"]:
             continue
         if not risk_mod.drawdown_ok(st["balance"], st["peak"], risk_cfg):
             break
-        strat = cls()
-        strat.prepare(df)
-        sig = strat.signal_at(len(df) - 1)
+        sig = _latest_signal(st, pair, df)
         if sig is None or sig.direction not in (1, -1):
             continue
         price = float(df["close"].iloc[-1])
         entry = cost.fill_price(price, sig.direction, pair, is_entry=True)
-        units = risk_mod.position_units(st["balance"], entry, sig.stop, risk_cfg)
+        units = risk_mod.position_units(st["balance"], entry, sig.stop, risk_cfg,
+                                        risk_scale=getattr(sig, "risk_scale", 1.0))
         if units <= 0:
             continue
         st["open"][pair] = {"pair": pair, "dir": sig.direction, "entry": round(entry, 6),
@@ -159,7 +201,7 @@ def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
             equity += (px - pos["entry"]) * pos["dir"] * pos["units"]
     st["history"].append({"t": _now(), "balance": round(st["balance"], 2),
                           "equity": round(equity, 2), "open": len(st["open"])})
-    save_state(st)
+    save_state(st, name)
     return st
 
 
@@ -171,9 +213,10 @@ def render(st: dict) -> str:
     wins = [p for p in pnls if p > 0]
     wr = len(wins) / len(pnls) * 100 if pnls else 0.0
     dd = (st["peak"] - st["balance"]) / st["peak"] * 100 if st["peak"] else 0.0
+    tag = st["strategy"] + (" aggressive" if st.get("aggressive") else "")
     lines = [
         "═" * 56,
-        f"  PAPER TRADING  [{st['strategy']} · {st['interval']}]  (simulated)",
+        f"  PAPER TRADING  [{tag} · {st['interval']}]  (simulated)",
         "═" * 56,
         f"  Balance        : ${st['balance']:,.2f}   (start $10,000)",
         f"  Open positions : {len(st['open'])}",
