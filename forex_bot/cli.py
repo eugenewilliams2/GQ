@@ -102,6 +102,8 @@ def main() -> None:
 
     ml = sub.add_parser("ml", help="train + walk-forward test the neural-net strategy")
     ml.add_argument("--thr", type=float, default=0.06, help="confidence margin to trade")
+    ml.add_argument("--aggressive", action="store_true",
+                    help="size up high-conviction trades (capped)")
     _add_source_args(ml)
 
     args = ap.parse_args()
@@ -178,10 +180,11 @@ def main() -> None:
         run_app()
     elif args.cmd == "ml":
         from forex_bot.ml import run_ml
-        print(f"\nNEURAL NET (MLP) — walk-forward, after costs ({args.source}/{args.interval})")
+        mode = "AGGRESSIVE (conviction-scaled)" if args.aggressive else "flat 1% sizing"
+        print(f"\nNEURAL NET (MLP) — walk-forward, after costs — {mode} ({args.source}/{args.interval})")
         print("training per-pair nets... (pure-numpy, no GPU)")
-        perf, per_pair = run_ml(_load(args), n_splits=4, thr=args.thr, ppy=ppy)
-        print(f"  pairs traded: {per_pair}")
+        perf, per_pair = run_ml(_load(args), n_splits=4, thr=args.thr, ppy=ppy,
+                                aggressive=args.aggressive)
         for k, v in perf.as_dict().items():
             print(f"  {k:16}: {v}")
         verdict = ("edge?" if perf.deflated_sharpe >= 0.95 and perf.sharpe > 0

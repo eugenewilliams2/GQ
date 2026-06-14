@@ -150,8 +150,10 @@ class MLStrategy(Strategy):
     confident up, short when confident down. ATR stop, R-multiple target."""
     name = "ml"
 
-    def __init__(self, preds=None, thr=0.06, atr_mult=2.0, rr=1.5, atr_period=14):
-        super().__init__(thr=thr, atr_mult=atr_mult, rr=rr, atr_period=atr_period)
+    def __init__(self, preds=None, thr=0.06, atr_mult=2.0, rr=1.5, atr_period=14,
+                 aggressive=False, agg_gain=12.0, max_mult=3.0):
+        super().__init__(thr=thr, atr_mult=atr_mult, rr=rr, atr_period=atr_period,
+                         aggressive=aggressive, agg_gain=agg_gain, max_mult=max_mult)
         self._preds = preds
 
     def warmup(self) -> int:
@@ -164,21 +166,34 @@ class MLStrategy(Strategy):
         if self._preds is None:
             self._preds = np.full(len(df), np.nan)
 
+    def _risk_scale(self, conf: float) -> float:
+        """1.0 at the trade threshold, scaling up with the net's conviction
+        (distance of P(up) from 0.5), capped. Only active when aggressive=True."""
+        if not self.params["aggressive"]:
+            return 1.0
+        extra = max(0.0, conf - self.params["thr"]) * self.params["agg_gain"]
+        return float(min(self.params["max_mult"], 1.0 + extra))
+
     def signal_at(self, i: int) -> StratSignal | None:
         p, a, c = self._preds[i], self.atr[i], self.close[i]
         if np.isnan(p) or np.isnan(a) or a <= 0:
             return None
         thr, am, rr = self.params["thr"], self.params["atr_mult"], self.params["rr"]
+        scale = self._risk_scale(abs(p - 0.5))
         if p > 0.5 + thr:
-            return StratSignal(1, c - am * a, c + am * a * rr)
+            return StratSignal(1, c - am * a, c + am * a * rr, risk_scale=scale,
+                               meta={"conf": round(p, 3)})
         if p < 0.5 - thr:
-            return StratSignal(-1, c + am * a, c - am * a * rr)
+            return StratSignal(-1, c + am * a, c - am * a * rr, risk_scale=scale,
+                               meta={"conf": round(p, 3)})
         return None
 
 
 def run_ml(data: dict, cost=None, risk_cfg=None, n_splits=4, thr=0.06,
-           hidden=(24, 12), ppy: float = 252):
-    """Walk-forward NN per pair, cost-aware backtest over the OOS region, pooled."""
+           hidden=(24, 12), ppy: float = 252, aggressive=False):
+    """Walk-forward NN per pair, cost-aware backtest over the OOS region, pooled.
+    Predictions are cached per pair so flat vs aggressive sizing is an apples-to-
+    apples comparison (same trades, different size)."""
     from forex_bot import metrics
     from forex_bot.engine import backtest
     from forex_bot.costs import CostModel
@@ -192,10 +207,10 @@ def run_ml(data: dict, cost=None, risk_cfg=None, n_splits=4, thr=0.06,
         preds = walkforward_predict(df, n_splits=n_splits, hidden=hidden)
         if not np.isfinite(preds).any():
             continue
-        res = backtest(df, MLStrategy(preds, thr=thr), pair, cost, risk_cfg)
+        strat = MLStrategy(preds, thr=thr, aggressive=aggressive)
+        res = backtest(df, strat, pair, cost, risk_cfg)
         first = int(np.argmax(np.isfinite(preds)))      # OOS region start
-        eq = res.equity[first:]
-        pooled_rets.append(metrics.returns_from_equity(eq))
+        pooled_rets.append(metrics.returns_from_equity(res.equity[first:]))
         pooled_pnls += res.trade_pnls
         per_pair[pair] = len(res.trades)
 

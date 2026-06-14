@@ -124,7 +124,8 @@ def backtest(df: pd.DataFrame,
             sig = strategy.signal_at(i)
             if sig is not None and sig.direction in (1, -1):
                 entry_fill = cost.fill_price(close[i], sig.direction, pair, is_entry=True)
-                units = risk_mod.position_units(balance, entry_fill, sig.stop, risk_cfg)
+                units = risk_mod.position_units(balance, entry_fill, sig.stop, risk_cfg,
+                                                risk_scale=getattr(sig, "risk_scale", 1.0))
                 if units > 0:
                     pos = {"dir": sig.direction, "entry": entry_fill, "stop": sig.stop,
                            "tgt": sig.target, "units": units, "i": i}

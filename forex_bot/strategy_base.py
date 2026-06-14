@@ -24,10 +24,11 @@ import pandas as pd
 
 @dataclass
 class StratSignal:
-    direction: int                       # +1 long, -1 short
-    stop:      float                     # stop-loss price
-    target:    float                     # take-profit price
-    meta:      dict = field(default_factory=dict)
+    direction:  int                      # +1 long, -1 short
+    stop:       float                    # stop-loss price
+    target:     float                    # take-profit price
+    risk_scale: float = 1.0              # >1 sizes up high-conviction trades (capped)
+    meta:       dict = field(default_factory=dict)
 
 
 class Strategy(ABC):

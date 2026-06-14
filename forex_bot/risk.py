@@ -35,17 +35,21 @@ class RiskConfig:
 def position_units(balance: float,
                    entry: float,
                    stop: float,
-                   cfg: RiskConfig) -> int:
+                   cfg: RiskConfig,
+                   risk_scale: float = 1.0) -> int:
     """
-    Units (base currency) to risk exactly `risk_per_trade` of balance at the stop,
-    capped by leverage. Returns 0 when inputs are degenerate so the caller skips
-    the trade rather than taking a mis-sized one.
+    Units (base currency) to risk `risk_per_trade * risk_scale` of balance at the
+    stop, capped by leverage. risk_scale > 1 sizes up high-conviction trades (the
+    "aggressive" side); it is clamped to [0, 4] so conviction can never blow past
+    sane bounds, and leverage still caps the final size. Returns 0 on degenerate
+    inputs so the caller skips rather than mis-sizes.
     """
     stop_dist = abs(entry - stop)
     if stop_dist <= 0 or balance <= 0 or entry <= 0:
         return 0
 
-    risk_amount = balance * cfg.risk_per_trade
+    scale = max(0.0, min(risk_scale, 4.0))
+    risk_amount = balance * cfg.risk_per_trade * scale
     units = risk_amount / stop_dist                      # <-- the correct formula
 
     max_units = cfg.max_leverage * balance / entry       # leverage only caps
