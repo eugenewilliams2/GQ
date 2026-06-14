@@ -31,10 +31,21 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key><string>1.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleExecutable</key><string>gq-dashboard</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+
+# App icon — generate if missing (needs Pillow), then install into the bundle.
+ICNS="$REPO/assets/AppIcon.icns"
+if [ ! -f "$ICNS" ] && [ -f "$REPO/scripts/make_icon.py" ]; then
+  "$PYTHON" "$REPO/scripts/make_icon.py" >/dev/null 2>&1 || true
+fi
+if [ -f "$ICNS" ]; then
+  cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
+  echo "  icon:   $ICNS"
+fi
 
 # Launcher — runs the fully native pywebview window (real macOS window + Dock icon).
 # Values baked in at build time so it works when launched from Finder.
