@@ -84,6 +84,10 @@ def main() -> None:
     v.add_argument("--train-frac", type=float, default=0.7)
     _add_source_args(v)
 
+    pr = sub.add_parser("pairs", help="market-neutral pairs trading, OOS")
+    pr.add_argument("--train-frac", type=float, default=0.7)
+    _add_source_args(pr)
+
     args = ap.parse_args()
     if args.cmd is None:
         ap.print_help()
@@ -116,6 +120,14 @@ def main() -> None:
                   f"PSR={p.psr:.2f} DSR={p.deflated_sharpe:.2f}")
         print(f"  IS->OOS Sharpe degradation: {deg:+.2f}  "
               f"({'OVERFIT — edge did not survive' if deg > 0.4 else 'held up out-of-sample'})")
+    elif args.cmd == "pairs":
+        from forex_bot.pairs import oos_pairs
+        (a, b, corr), isp, oosp, ntr = oos_pairs(_load(args), train_frac=args.train_frac, ppy=ppy)
+        print(f"\nPAIRS TRADING — {args.source}/{args.interval} (train_frac={args.train_frac})")
+        print(f"  most-correlated pair (in-sample): {a} / {b}  corr={corr:.2f}")
+        print(f"  IS   sharpe={isp.sharpe:+.2f} maxDD={isp.max_drawdown*100:.1f}%")
+        print(f"  OOS  sharpe={oosp.sharpe:+.2f} maxDD={oosp.max_drawdown*100:.1f}% "
+              f"trades={ntr} DSR={oosp.deflated_sharpe:.2f}")
 
 
 if __name__ == "__main__":

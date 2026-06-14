@@ -22,6 +22,7 @@ from forex_bot.strategies.momentum import MomentumBreakout
 from forex_bot.strategies.meanrev import ZScoreMeanReversion
 from forex_bot.strategies.tsmom import TSMomentum
 from forex_bot.strategies.ict import ICTStrategy
+from forex_bot.strategies.fvg import FVGStrategy
 
 
 # (strategy class, parameter grid to search in-sample)
@@ -35,6 +36,8 @@ REGISTRY = {
         "period": [10, 20, 40], "entry_z": [1.5, 2.0, 2.5], "atr_mult": [1.5, 2.0]}),
     "ict": (ICTStrategy, {
         "swing_n": [3, 5, 8], "atr_buffer": [0.3, 0.5, 1.0]}),
+    "fvg": (FVGStrategy, {
+        "trend_ema": [50, 100, 200], "atr_mult": [0.5, 1.0], "rr": [1.5, 2.0]}),
 }
 
 # Cross-sectional momentum is portfolio-level (own backtest), evaluated separately.
