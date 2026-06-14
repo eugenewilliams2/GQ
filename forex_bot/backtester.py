@@ -10,6 +10,7 @@ import logging
 import warnings
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
 import pandas as pd
 
 from forex_bot import config, strategy
@@ -132,16 +133,37 @@ def run_backtest(
     all_ts = sorted(set().union(*[set(df.index) for df in raw_1h.values()]))
     logger.info("Replaying %d timestamps across %d pairs…", len(all_ts), len(raw_1h))
 
+    # Pre-extract sorted index arrays so each bar's cutoff is an O(log n)
+    # searchsorted instead of an O(n) boolean mask over the full series.
+    idx_1h = {p: df.index.values for p, df in raw_1h.items()}
+    idx_4h = {p: df.index.values for p, df in raw_4h.items()}
+
+    # Bounded trailing window on the 1H series only. The 1H stream is the
+    # expensive one (~4× the 4H bar count) and the strategy reads only recent
+    # 1H history (longest explicit lookback is 100 bars; EWM indicators converge
+    # to float precision well within 2000). Capping both keeps each bar
+    # O(window) instead of O(n) — the whole replay drops from O(n²) to O(n).
+    # The 4H cap is safe now that next_structure_target() targets the NEAREST
+    # structural level (recent), not the oldest swing in history.
+    WIN_1H, WIN_4H = 2000, 1000
+
     for ts in all_ts:
+        ts64 = np.datetime64(ts)
         slices_1h, slices_4h, prices = {}, {}, {}
 
         for pair in raw_1h:
-            sub1 = raw_1h[pair][raw_1h[pair].index <= ts]
-            sub4 = raw_4h.get(pair, pd.DataFrame())
-            sub4 = sub4[sub4.index <= ts] if not sub4.empty else sub4
-
-            if len(sub1) < warmup:
+            pos1 = int(np.searchsorted(idx_1h[pair], ts64, side="right"))
+            if pos1 < warmup:
                 continue
+            sub1 = raw_1h[pair].iloc[max(0, pos1 - WIN_1H):pos1]
+
+            sub4_full = raw_4h.get(pair)
+            if sub4_full is not None and len(sub4_full):
+                pos4 = int(np.searchsorted(idx_4h[pair], ts64, side="right"))
+                sub4 = sub4_full.iloc[max(0, pos4 - WIN_4H):pos4]
+            else:
+                sub4 = pd.DataFrame()
+
             slices_1h[pair] = sub1
             slices_4h[pair] = sub4
             prices[pair]    = float(sub1["close"].iloc[-1])

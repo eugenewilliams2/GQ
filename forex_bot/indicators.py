@@ -91,16 +91,18 @@ def swing_points(df: pd.DataFrame, n: int = 5) -> tuple[pd.Series, pd.Series]:
     Identify swing highs and swing lows.
     A swing high is the highest high in a window of n candles on each side.
     Returns (swing_highs, swing_lows) — NaN everywhere except at swing points.
+
+    Vectorized via a centered rolling window: bar i is a swing high when its
+    high equals the max of [i-n, i+n], a swing low when its low equals the min
+    of that window. Behaviour is identical to the old per-bar Python loop, but
+    runs in one pandas pass — the loop version was recomputed over the full
+    history every backtest bar, making the backtester effectively O(n²).
     """
-    highs = pd.Series(np.nan, index=df.index)
-    lows  = pd.Series(np.nan, index=df.index)
-    for i in range(n, len(df) - n):
-        window_h = df["high"].iloc[i - n : i + n + 1]
-        window_l = df["low"].iloc[i - n : i + n + 1]
-        if df["high"].iloc[i] == window_h.max():
-            highs.iloc[i] = df["high"].iloc[i]
-        if df["low"].iloc[i] == window_l.min():
-            lows.iloc[i] = df["low"].iloc[i]
+    win = 2 * n + 1
+    roll_max = df["high"].rolling(win, center=True).max()
+    roll_min = df["low"].rolling(win, center=True).min()
+    highs = df["high"].where(df["high"] == roll_max)
+    lows  = df["low"].where(df["low"]  == roll_min)
     return highs, lows
 
 
@@ -287,24 +289,30 @@ def detect_liquidity_sweep(df: pd.DataFrame, direction: int,
 
 def next_structure_target(df: pd.DataFrame, direction: int, n: int = 5) -> float | None:
     """
-    Find the next significant swing high (bullish TP) or swing low (bearish TP)
-    beyond current price. Used for R:R calculation.
+    Find the NEAREST structural target beyond current price — the first swing
+    high above (bullish TP) or first swing low below (bearish TP). Used for R:R.
+
+    Uses the closest qualifying level (min high above / max low below) rather
+    than the oldest one in the series: the oldest qualifying swing can sit near
+    the start of history, producing a distant target and nonsensical R:R (e.g.
+    40:1). The nearest level is the realistic first objective price reaches, and
+    it depends only on recent structure — so a bounded backtest window reproduces
+    it. Falls back to 3× ATR when no structural level qualifies.
     """
     sh, sl = swing_points(df, n)
     price  = float(df["close"].iloc[-1])
 
     if direction == 1:
-        highs = sh.dropna()
-        candidates = highs[highs > price]
-        if not candidates.empty:
-            return float(candidates.iloc[0])
-        # Fallback: 3× ATR above price
+        above = sh.dropna()
+        above = above[above > price]
+        if not above.empty:
+            return float(above.min())          # nearest resistance above price
         return price + float(atr(df["high"], df["low"], df["close"]).iloc[-1]) * 3
     else:
-        lows = sl.dropna()
-        candidates = lows[lows < price]
-        if not candidates.empty:
-            return float(candidates.iloc[-1])
+        below = sl.dropna()
+        below = below[below < price]
+        if not below.empty:
+            return float(below.max())          # nearest support below price
         return price - float(atr(df["high"], df["low"], df["close"]).iloc[-1]) * 3
 
 
