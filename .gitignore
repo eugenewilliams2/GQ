@@ -7,3 +7,5 @@ __pycache__/
 
 # data cache
 .gq_data_cache.pkl
+comparison_report.html
+backtest_report.html

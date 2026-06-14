@@ -59,6 +59,9 @@ def main() -> None:
     f = sub.add_parser("fetch", help="populate/refresh the data cache")
     f.add_argument("--refresh", action="store_true")
 
+    rp = sub.add_parser("report", help="walk-forward comparison -> HTML dashboard")
+    rp.add_argument("--out", "-o", default="comparison_report.html")
+
     args = ap.parse_args()
 
     if args.cmd == "compare":
@@ -68,6 +71,10 @@ def main() -> None:
     elif args.cmd == "fetch":
         d = data_mod.load(refresh=args.refresh)
         print(f"cached {len(d)} pairs: {', '.join(d)}")
+    elif args.cmd == "report":
+        from forex_bot.report import generate
+        path = generate(data_mod.load(), args.out)
+        print(f"report written -> {path}")
     else:
         ap.print_help()
 
