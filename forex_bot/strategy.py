@@ -222,10 +222,17 @@ def _validate(pair: str, df_1h: pd.DataFrame, df_4h: pd.DataFrame) -> bool:
     if ind.data_quality_score(df_1h) < 0.6 or ind.data_quality_score(df_4h) < 0.6:
         logger.debug("%s: data quality check failed", pair)
         return False
-    zero_vol = (df_1h["volume"] == 0).sum()
-    if zero_vol > len(df_1h) * 0.60:
-        logger.debug("%s: too many zero-volume bars (%d)", pair, zero_vol)
-        return False
+    # Forex spot has no centralized volume — Yahoo returns volume=0 for every FX
+    # bar. Only treat zero-volume bars as a defect when the instrument actually
+    # carries a volume feed (some bars non-zero), so a zero is a real gap rather
+    # than the norm. Without this guard, every =X pair fails validation and the
+    # bot can never emit a signal. (Supersedes the earlier 10%->60% threshold
+    # bump, which still rejected FX since 100% of bars are zero-volume.)
+    if df_1h["volume"].sum() > 0:
+        zero_vol = (df_1h["volume"] == 0).sum()
+        if zero_vol > len(df_1h) * 0.10:
+            logger.debug("%s: too many zero-volume bars (%d)", pair, zero_vol)
+            return False
     return True
 
 
