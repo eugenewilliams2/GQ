@@ -4,3 +4,4 @@ numpy>=1.26.0
 rich>=13.0.0
 schedule>=1.2.0
 requests>=2.31.0
+pywebview>=5.0  # optional: only for `run.py app` (native desktop window)

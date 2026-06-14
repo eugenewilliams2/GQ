@@ -98,6 +98,8 @@ def main() -> None:
     db.add_argument("--port", type=int, default=8000)
     db.add_argument("--no-serve", action="store_true", help="just write the files")
 
+    sub.add_parser("app", help="launch the fully native desktop window (pywebview)")
+
     args = ap.parse_args()
     if args.cmd is None:
         ap.print_help()
@@ -167,6 +169,9 @@ def main() -> None:
                 httpd.serve_forever()
             except KeyboardInterrupt:
                 print("\nstopped.")
+    elif args.cmd == "app":
+        from forex_bot.native_app import main as run_app
+        run_app()
 
 
 if __name__ == "__main__":
