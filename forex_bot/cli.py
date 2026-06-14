@@ -19,20 +19,35 @@ import argparse
 import numpy as np
 
 from forex_bot import data as data_mod
-from forex_bot import metrics, costs, risk
-from forex_bot.datasource import bars_per_year
+from forex_bot import config, metrics, costs, risk
 from forex_bot.engine import backtest
 from forex_bot.compare import compare, REGISTRY
 
+_BARS_PER_DAY = {"1h": 24, "6h": 4, "4h": 6, "1d": 1, "1wk": 1 / 7}
+
 
 def _load(args):
-    return data_mod.load(source=args.source, interval=args.interval,
+    return data_mod.load(pairs=config.pairs_for(getattr(args, "asset", "forex")),
+                         source=args.source, interval=args.interval,
                          refresh=getattr(args, "refresh", False))
 
 
-def _backtest_one(name: str, use_cost: bool, data: dict, ppy: float) -> None:
+def _cost(args, use_cost: bool = True):
+    """Asset-appropriate cost model: percentage-based for crypto, pip-based for FX."""
+    if getattr(args, "asset", "forex") == "crypto":
+        return costs.CryptoCostModel() if use_cost else costs.CRYPTO_ZERO_COST
+    return costs.CostModel() if use_cost else costs.ZERO_COST
+
+
+def _ppy(args) -> float:
+    """Annualization factor: crypto trades 365 days, FX 252; scaled by interval."""
+    per_day = _BARS_PER_DAY.get(getattr(args, "interval", "1h"), 24)
+    return config.ASSET_DAYS.get(getattr(args, "asset", "forex"), 252) * per_day
+
+
+def _backtest_one(args, name: str, use_cost: bool, data: dict, ppy: float) -> None:
     cls, _ = REGISTRY[name]
-    cost = costs.CostModel() if use_cost else costs.ZERO_COST
+    cost = _cost(args, use_cost)
     cfg = risk.RiskConfig(risk_per_trade=0.01, max_leverage=30)
 
     pooled_rets, pooled_pnls = [], []
@@ -45,7 +60,7 @@ def _backtest_one(name: str, use_cost: bool, data: dict, ppy: float) -> None:
     perf = metrics.summarize(equity, pooled_pnls, ppy, n_trials=1)
 
     tag = "with costs" if use_cost else "ZERO cost"
-    print(f"\n{name} — full-sample, default params ({tag})")
+    print(f"\n{name} — {args.asset}, full-sample, default params ({tag})")
     print("-" * 50)
     for k, v in perf.as_dict().items():
         print(f"  {k:16}: {v}")
@@ -54,8 +69,11 @@ def _backtest_one(name: str, use_cost: bool, data: dict, ppy: float) -> None:
 
 
 def _add_source_args(p):
-    p.add_argument("--source", default="yfinance", choices=["yfinance", "csv", "stooq"])
-    p.add_argument("--interval", default="1h", choices=["1h", "4h", "1d", "1wk"])
+    p.add_argument("--asset", default="forex", choices=["forex", "crypto"],
+                   help="forex (=X pairs) or crypto (BTC-USD ...)")
+    p.add_argument("--source", default="yfinance",
+                   choices=["yfinance", "coinbase", "csv", "stooq"])
+    p.add_argument("--interval", default="1h", choices=["1h", "6h", "4h", "1d", "1wk"])
 
 
 def main() -> None:
@@ -115,15 +133,16 @@ def main() -> None:
         ap.print_help()
         return
 
-    ppy = bars_per_year(getattr(args, "interval", "1h"))
+    ppy = _ppy(args) if hasattr(args, "interval") else 252
 
     if args.cmd == "compare":
-        compare(_load(args), periods_per_year=ppy)
+        compare(_load(args), cost=_cost(args), periods_per_year=ppy)
     elif args.cmd == "backtest":
-        _backtest_one(args.strategy, not args.no_cost, _load(args), ppy)
+        _backtest_one(args, args.strategy, not args.no_cost, _load(args), ppy)
     elif args.cmd == "fetch":
         d = _load(args)
-        print(f"[{args.source}/{args.interval}] cached {len(d)} pairs: {', '.join(d) or '(none)'}")
+        print(f"[{args.asset}/{args.source}/{args.interval}] cached {len(d)} pairs: "
+              f"{', '.join(d) or '(none)'}")
     elif args.cmd == "report":
         from forex_bot.report import generate
         path = generate(_load(args), args.out, periods_per_year=ppy)
@@ -131,7 +150,8 @@ def main() -> None:
     elif args.cmd == "validate":
         from forex_bot.validate import holdout_validate
         cls, grid = REGISTRY[args.strategy]
-        res = holdout_validate(cls, grid, _load(args), train_frac=args.train_frac, ppy=ppy)
+        res = holdout_validate(cls, grid, _load(args), cost=_cost(args),
+                               train_frac=args.train_frac, ppy=ppy)
         deg = res.is_perf.sharpe - res.oos_perf.sharpe
         print(f"\nSTRICT HOLDOUT — {args.strategy} ({args.source}/{args.interval}, "
               f"train_frac={args.train_frac})")
@@ -144,7 +164,8 @@ def main() -> None:
               f"({'OVERFIT — edge did not survive' if deg > 0.4 else 'held up out-of-sample'})")
     elif args.cmd == "pairs":
         from forex_bot.pairs import oos_pairs
-        (a, b, corr), isp, oosp, ntr = oos_pairs(_load(args), train_frac=args.train_frac, ppy=ppy)
+        (a, b, corr), isp, oosp, ntr = oos_pairs(_load(args), cost=_cost(args),
+                                                 train_frac=args.train_frac, ppy=ppy)
         print(f"\nPAIRS TRADING — {args.source}/{args.interval} (train_frac={args.train_frac})")
         print(f"  most-correlated pair (in-sample): {a} / {b}  corr={corr:.2f}")
         print(f"  IS   sharpe={isp.sharpe:+.2f} maxDD={isp.max_drawdown*100:.1f}%")
@@ -188,13 +209,14 @@ def main() -> None:
         from forex_bot.ml import run_ml, holdout_ml
         mode = "AGGRESSIVE (conviction-scaled)" if args.aggressive else "flat 1% sizing"
         test = "strict single holdout" if args.holdout else "4-fold walk-forward"
-        print(f"\nNEURAL NET (MLP) — {test}, after costs — {mode} ({args.source}/{args.interval})")
+        print(f"\nNEURAL NET (MLP) — {test}, after costs — {mode} ({args.asset}/{args.source}/{args.interval})")
         print("training per-pair nets... (pure-numpy, no GPU)")
         if args.holdout:
-            perf = holdout_ml(_load(args), thr=args.thr, ppy=ppy, aggressive=args.aggressive)
+            perf = holdout_ml(_load(args), cost=_cost(args), thr=args.thr, ppy=ppy,
+                              aggressive=args.aggressive)
         else:
-            perf, _ = run_ml(_load(args), n_splits=4, thr=args.thr, ppy=ppy,
-                             aggressive=args.aggressive)
+            perf, _ = run_ml(_load(args), cost=_cost(args), n_splits=4, thr=args.thr,
+                             ppy=ppy, aggressive=args.aggressive)
         for k, v in perf.as_dict().items():
             print(f"  {k:16}: {v}")
         verdict = ("crosses the DSR bar on THIS test — forward-validate before trusting"

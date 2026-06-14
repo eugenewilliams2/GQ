@@ -13,6 +13,25 @@ PAIRS = [
     "NZDUSD=X",
 ]
 
+# ── Crypto universe (real volume on Yahoo, trades 24/7) ─────────────────────
+CRYPTO_PAIRS = [
+    "BTC-USD",
+    "ETH-USD",
+    "SOL-USD",
+    "BNB-USD",
+    "XRP-USD",
+    "ADA-USD",
+    "DOGE-USD",
+]
+
+# Trading days per year by asset class — crypto trades 24/7 (365), FX 24/5 (252).
+ASSET_DAYS = {"forex": 252, "crypto": 365}
+
+
+def pairs_for(asset: str) -> list[str]:
+    return CRYPTO_PAIRS if asset == "crypto" else PAIRS
+
+
 # Correlation groups — positions in same group share risk budget
 CORRELATION_GROUPS = {
     "eur_cluster":   ["EURUSD=X", "GBPUSD=X"],

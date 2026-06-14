@@ -37,6 +37,14 @@ def build_features(df: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
     k, d = ind.stochastic(h, l, c)
     atr = ind.atr(h, l, c, 14)
     rsi = ind.rsi(c, 14)
+    # volume features — real signal for crypto, inert (0) for volumeless FX.
+    v = df["volume"]
+    vmean = v.rolling(20).mean()
+    vol_z = ((v - vmean) / v.rolling(20).std().replace(0, np.nan)).fillna(0.0)
+    vol_chg = v.pct_change().replace([np.inf, -np.inf], 0).fillna(0.0).clip(-5, 5)
+    obv = ind.obv(c, v)
+    obv_slope = ((obv - obv.shift(10)) / vmean.replace(0, np.nan)).fillna(0.0)
+
     feats = {
         "r1": c.pct_change(1),
         "r3": c.pct_change(3),
@@ -51,6 +59,9 @@ def build_features(df: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
         "px_vs_ema50": (c - ind.ema(c, 50)) / c,
         "vol20": c.pct_change().rolling(20).std(),
         "range": (h - l) / c,
+        "vol_z": vol_z,
+        "vol_chg": vol_chg,
+        "obv_slope": obv_slope,
     }
     X = pd.DataFrame(feats).to_numpy(dtype=float)
     return X, list(feats)

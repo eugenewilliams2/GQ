@@ -73,13 +73,13 @@ class ICTStrategy(Strategy):
             stop = sl - buf
             target = sh                              # nearest confirmed high above
             if target > c and stop < c:
-                return StratSignal(1, stop, target, {"setup": "bull_sweep"})
+                return StratSignal(1, stop, target, meta={"setup": "bull_sweep"})
 
         # Bearish: swept the last swing high
         if bear and self.high[i] > sh > c and rsi > 30:
             stop = sh + buf
             target = sl
             if target < c and stop > c:
-                return StratSignal(-1, stop, target, {"setup": "bear_sweep"})
+                return StratSignal(-1, stop, target, meta={"setup": "bear_sweep"})
 
         return None

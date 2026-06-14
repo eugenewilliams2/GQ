@@ -127,12 +127,56 @@ class StooqSource(DataSource):
         return out.loc[(out.index >= s) & (out.index <= e)]
 
 
+class CoinbaseSource(DataSource):
+    """Coinbase Exchange public candles — real exchange OHLCV + volume, no key.
+    Products use the BTC-USD form (matches our crypto universe). Granularity is
+    fixed by the API (no native 4h); paginated at 300 candles per request."""
+    name = "coinbase"
+    GRAN = {"1h": 3600, "6h": 21600, "1d": 86400}
+
+    def __init__(self, interval: str = "1d"):
+        self.interval = interval
+
+    def fetch(self, pair: str, start: str, end: str) -> pd.DataFrame | None:
+        import time as _t
+        import requests
+        gran = self.GRAN.get(self.interval)
+        if gran is None:                       # e.g. 4h not offered by Coinbase
+            return None
+        s = int(pd.to_datetime(start, utc=True).timestamp())
+        e = int(pd.to_datetime(end, utc=True).timestamp())
+        chunk = 300 * gran
+        rows, cur = [], s
+        while cur < e:
+            cend = min(cur + chunk, e)
+            try:
+                r = requests.get(
+                    f"https://api.exchange.coinbase.com/products/{pair}/candles",
+                    params={"granularity": gran, "start": cur, "end": cend},
+                    timeout=20, headers={"User-Agent": "gq-research"})
+                if r.status_code == 200:
+                    rows += r.json()
+            except Exception:
+                pass
+            cur = cend
+            _t.sleep(0.25)                      # be polite to the public endpoint
+        if not rows:
+            return None
+        df = pd.DataFrame(rows, columns=["time", "low", "high", "open", "close", "volume"])
+        df = df.drop_duplicates("time")
+        df.index = pd.to_datetime(df["time"], unit="s", utc=True)
+        df = df[["open", "high", "low", "close", "volume"]].astype(float).sort_index()
+        return df[~df.index.duplicated(keep="last")] if len(df) else None
+
+
 def get_source(name: str = "yfinance", interval: str = "1h") -> DataSource:
     name = name.lower()
     if name == "yfinance":
         return YFinanceSource(interval=interval)
+    if name == "coinbase":
+        return CoinbaseSource(interval=interval)
     if name == "csv":
         return CSVSource(interval=interval)
     if name == "stooq":
         return StooqSource()
-    raise ValueError(f"unknown source '{name}' (yfinance | csv | stooq)")
+    raise ValueError(f"unknown source '{name}' (yfinance | coinbase | csv | stooq)")

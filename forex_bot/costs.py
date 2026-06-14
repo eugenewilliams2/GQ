@@ -63,3 +63,32 @@ class CostModel:
 
 # A frictionless model — only for proving that costs are what kill a strategy.
 ZERO_COST = CostModel(spread_pips=0.0, slippage_pips=0.0, commission_per_lot=0.0)
+
+
+@dataclass(frozen=True)
+class CryptoCostModel:
+    """
+    Percentage-based costs for crypto (no pips). Exchange fees dwarf FX costs:
+    a retail taker pays ~0.1% PER SIDE, plus spread and slippage. All costs are
+    folded into the fill price (as basis points of price) so the engine needs no
+    changes; commission() returns 0. Round-trip here is ~0.36% — ~50x the FX cost,
+    which is exactly why high-frequency crypto strategies bleed.
+    """
+    spread_bps:    float = 6.0      # total bid/ask spread (0.06%)
+    slippage_bps:  float = 5.0      # adverse fill drift per leg
+    fee_bps:       float = 10.0     # taker fee per side (0.10%)
+
+    def fill_price(self, mid: float, direction: int, pair: str, is_entry: bool) -> float:
+        adverse_up = direction == 1 if is_entry else direction == -1
+        frac = (self.spread_bps / 2 + self.slippage_bps + self.fee_bps) / 10_000
+        return mid * (1 + frac) if adverse_up else mid * (1 - frac)
+
+    def commission(self, units: int) -> float:
+        return 0.0                  # folded into fill_price
+
+    def round_trip_pips(self) -> float:
+        # not pips, but the round-trip cost in bps — kept for interface parity
+        return self.spread_bps + 2 * (self.slippage_bps + self.fee_bps)
+
+
+CRYPTO_ZERO_COST = CryptoCostModel(spread_bps=0.0, slippage_bps=0.0, fee_bps=0.0)

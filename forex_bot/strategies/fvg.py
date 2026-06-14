@@ -73,7 +73,7 @@ class FVGStrategy(Strategy):
             if self.low[i] <= top and c >= bot:           # tagged the gap, still above it
                 stop = bot - am * a
                 if stop < c:
-                    return StratSignal(1, stop, c + (c - stop) * rr, {"setup": "bull_fvg"})
+                    return StratSignal(1, stop, c + (c - stop) * rr, meta={"setup": "bull_fvg"})
 
         # Bearish mirror
         if c < e and not np.isnan(self.bear_bot[i]) and self.bear_age[i] <= maxage:
@@ -81,5 +81,5 @@ class FVGStrategy(Strategy):
             if self.high[i] >= bot and c <= top:
                 stop = top + am * a
                 if stop > c:
-                    return StratSignal(-1, stop, c - (stop - c) * rr, {"setup": "bear_fvg"})
+                    return StratSignal(-1, stop, c - (stop - c) * rr, meta={"setup": "bear_fvg"})
         return None
