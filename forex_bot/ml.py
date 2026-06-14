@@ -219,3 +219,40 @@ def run_ml(data: dict, cost=None, risk_cfg=None, n_splits=4, thr=0.06,
     perf = metrics.summarize(equity, pooled_pnls, ppy, n_trials=1)
     return perf, per_pair
 
+
+def holdout_ml(data: dict, cost=None, risk_cfg=None, train_frac=0.7, thr=0.06,
+               hidden=(24, 12), ppy: float = 252, aggressive=False, horizon=1):
+    """Strict single holdout: train each net ONCE on the first `train_frac`,
+    predict the untouched remainder one time, backtest the OOS region. The most
+    conservative test — one model, one evaluation, n_trials=1."""
+    from forex_bot import metrics
+    from forex_bot.engine import backtest
+    from forex_bot.costs import CostModel
+    from forex_bot.risk import RiskConfig
+    cost = cost or CostModel()
+    risk_cfg = risk_cfg or RiskConfig(risk_per_trade=0.01, max_leverage=30)
+
+    pooled_rets, pooled_pnls = [], []
+    for pair, (df, _) in data.items():
+        X, _ = build_features(df)
+        y = build_labels(df, horizon)
+        n = len(df)
+        cut = int(n * train_frac)
+        rows = np.arange(WARMUP, cut - horizon)
+        rows = rows[np.isfinite(X[rows]).all(1) & np.isfinite(y[rows])]
+        if len(rows) < 100:
+            continue
+        net = MLP([X.shape[1], *hidden, 1]).fit(X[rows], y[rows])
+        preds = np.full(n, np.nan)
+        te = np.arange(cut, n)
+        te = te[np.isfinite(X[te]).all(1)]
+        preds[te] = net.predict_proba(X[te])
+        res = backtest(df, MLStrategy(preds, thr=thr, aggressive=aggressive),
+                       pair, cost, risk_cfg)
+        pooled_rets.append(metrics.returns_from_equity(res.equity[cut:]))
+        pooled_pnls += res.trade_pnls
+
+    rets = np.concatenate(pooled_rets) if pooled_rets else np.array([])
+    equity = 10_000 * np.cumprod(1 + rets) if len(rets) else np.array([10_000.0])
+    return metrics.summarize(equity, pooled_pnls, ppy, n_trials=1)
+

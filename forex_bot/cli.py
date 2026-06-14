@@ -104,6 +104,8 @@ def main() -> None:
     ml.add_argument("--thr", type=float, default=0.06, help="confidence margin to trade")
     ml.add_argument("--aggressive", action="store_true",
                     help="size up high-conviction trades (capped)")
+    ml.add_argument("--holdout", action="store_true",
+                    help="strict single train/test split instead of walk-forward")
     _add_source_args(ml)
 
     args = ap.parse_args()
@@ -179,15 +181,20 @@ def main() -> None:
         from forex_bot.native_app import main as run_app
         run_app()
     elif args.cmd == "ml":
-        from forex_bot.ml import run_ml
+        from forex_bot.ml import run_ml, holdout_ml
         mode = "AGGRESSIVE (conviction-scaled)" if args.aggressive else "flat 1% sizing"
-        print(f"\nNEURAL NET (MLP) — walk-forward, after costs — {mode} ({args.source}/{args.interval})")
+        test = "strict single holdout" if args.holdout else "4-fold walk-forward"
+        print(f"\nNEURAL NET (MLP) — {test}, after costs — {mode} ({args.source}/{args.interval})")
         print("training per-pair nets... (pure-numpy, no GPU)")
-        perf, per_pair = run_ml(_load(args), n_splits=4, thr=args.thr, ppy=ppy,
-                                aggressive=args.aggressive)
+        if args.holdout:
+            perf = holdout_ml(_load(args), thr=args.thr, ppy=ppy, aggressive=args.aggressive)
+        else:
+            perf, _ = run_ml(_load(args), n_splits=4, thr=args.thr, ppy=ppy,
+                             aggressive=args.aggressive)
         for k, v in perf.as_dict().items():
             print(f"  {k:16}: {v}")
-        verdict = ("edge?" if perf.deflated_sharpe >= 0.95 and perf.sharpe > 0
+        verdict = ("crosses the DSR bar on THIS test — forward-validate before trusting"
+                   if perf.deflated_sharpe >= 0.95 and perf.sharpe > 0
                    else "no credible edge (indistinguishable from luck after costs)")
         print(f"  VERDICT: {verdict}")
 
