@@ -4,3 +4,6 @@ __pycache__/
 *.pyd
 *.log
 .env
+
+# data cache
+.gq_data_cache.pkl

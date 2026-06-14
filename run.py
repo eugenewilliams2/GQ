@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """
-GQ Forex Trading Bot — quick launcher.
+GQ Forex Strategy Research Harness — launcher.
 
-  python run.py                       # interactive menu
-  python run.py --mode safe           # safe mode (default action: scan)
-  python run.py --mode aggressive     # high risk / high reward
-  python run.py live --mode safe
-  python run.py backtest --mode aggressive
+  python run.py compare                       # walk-forward, all strategies, ranked
+  python run.py backtest --strategy momentum  # single strategy, with realistic costs
+  python run.py backtest -s ict --no-cost     # frictionless, to show cost impact
+  python run.py fetch --refresh               # rebuild the data cache
+
+Research tool only — reports whether a strategy has a measurable edge
+out-of-sample after costs. It does not place trades.
 """
-from forex_bot.bot import main
+from forex_bot.cli import main
 
 if __name__ == "__main__":
     main()
