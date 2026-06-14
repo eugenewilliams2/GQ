@@ -79,6 +79,11 @@ def main() -> None:
     rp.add_argument("--out", "-o", default="comparison_report.html")
     _add_source_args(rp)
 
+    v = sub.add_parser("validate", help="strict single-holdout OOS test of one strategy")
+    v.add_argument("--strategy", "-s", choices=list(REGISTRY), default="tsmom")
+    v.add_argument("--train-frac", type=float, default=0.7)
+    _add_source_args(v)
+
     args = ap.parse_args()
     if args.cmd is None:
         ap.print_help()
@@ -97,6 +102,20 @@ def main() -> None:
         from forex_bot.report import generate
         path = generate(_load(args), args.out, periods_per_year=ppy)
         print(f"report written -> {path}")
+    elif args.cmd == "validate":
+        from forex_bot.validate import holdout_validate
+        cls, grid = REGISTRY[args.strategy]
+        res = holdout_validate(cls, grid, _load(args), train_frac=args.train_frac, ppy=ppy)
+        deg = res.is_perf.sharpe - res.oos_perf.sharpe
+        print(f"\nSTRICT HOLDOUT — {args.strategy} ({args.source}/{args.interval}, "
+              f"train_frac={args.train_frac})")
+        print(f"  params chosen on in-sample ({res.n_combos} combos): {res.params}")
+        for tag, p in (("IS", res.is_perf), ("OOS", res.oos_perf)):
+            print(f"  {tag:4} trades={p.n_trades:4} PF={p.profit_factor:.2f} "
+                  f"sharpe={p.sharpe:+.2f} maxDD={p.max_drawdown*100:.1f}% "
+                  f"PSR={p.psr:.2f} DSR={p.deflated_sharpe:.2f}")
+        print(f"  IS->OOS Sharpe degradation: {deg:+.2f}  "
+              f"({'OVERFIT — edge did not survive' if deg > 0.4 else 'held up out-of-sample'})")
 
 
 if __name__ == "__main__":
