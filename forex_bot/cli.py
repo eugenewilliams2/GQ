@@ -88,6 +88,12 @@ def main() -> None:
     pr.add_argument("--train-frac", type=float, default=0.7)
     _add_source_args(pr)
 
+    pp = sub.add_parser("paper", help="forward paper-trade a strategy (simulated)")
+    pp.add_argument("--strategy", "-s", choices=list(REGISTRY), default="fvg")
+    pp.add_argument("--reset", action="store_true", help="start a fresh paper session")
+    pp.add_argument("--status", action="store_true", help="show state without ticking")
+    _add_source_args(pp)
+
     args = ap.parse_args()
     if args.cmd is None:
         ap.print_help()
@@ -128,6 +134,17 @@ def main() -> None:
         print(f"  IS   sharpe={isp.sharpe:+.2f} maxDD={isp.max_drawdown*100:.1f}%")
         print(f"  OOS  sharpe={oosp.sharpe:+.2f} maxDD={oosp.max_drawdown*100:.1f}% "
               f"trades={ntr} DSR={oosp.deflated_sharpe:.2f}")
+    elif args.cmd == "paper":
+        from forex_bot import paper
+        if args.reset:
+            paper.reset(args.strategy, args.interval)
+            print(f"new paper session: {args.strategy} on {args.interval} (start $10,000)")
+        if args.status:
+            st = paper.load_state()
+            print(paper.render(st) if st else "no paper session — run with --reset")
+        else:
+            st = paper.tick(source=args.source)
+            print(paper.render(st))
 
 
 if __name__ == "__main__":
