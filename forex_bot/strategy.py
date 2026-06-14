@@ -49,20 +49,22 @@ class Signal:
 
 def _gate_structure(df_4h: pd.DataFrame) -> int:
     """
-    BOS/CHoCH on the 4H chart.
-    Requires 3 consistent swing highs+lows to confirm a structure.
+    BOS/CHoCH on the 4H chart using majority-vote swing analysis.
+    ADX confirms the market is trending (value only — DI crossover is NOT
+    checked here because during pullbacks -DI briefly exceeds +DI even in
+    a healthy bull trend, which would suppress exactly the setups we want).
     Returns 1 (bullish), -1 (bearish), 0 (unclear).
     """
     bias = ind.market_structure_bias(df_4h, config.SWING_LOOKBACK)
+    if bias == 0:
+        return 0
 
-    # ADX confluence — research showed ADX is lagging but useful as a filter
-    adx_val, di_pos, di_neg = ind.adx(df_4h["high"], df_4h["low"], df_4h["close"],
-                                       config.ATR_PERIOD)
-    adx_ok = adx_val.iloc[-1] >= config.ACTIVE_PROFILE["adx_min"]
+    adx_val, _, _ = ind.adx(df_4h["high"], df_4h["low"], df_4h["close"],
+                             config.ATR_PERIOD)
+    if adx_val.iloc[-1] < config.ACTIVE_PROFILE["adx_min"]:
+        return 0
 
-    if bias == 1  and adx_ok and di_pos.iloc[-1] > di_neg.iloc[-1]: return 1
-    if bias == -1 and adx_ok and di_neg.iloc[-1] > di_pos.iloc[-1]: return -1
-    return 0
+    return bias
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -85,8 +87,9 @@ def _gate_poi(df_4h: pd.DataFrame, df_1h: pd.DataFrame,
     obs  = ind.find_order_blocks(df_4h, direction)
     fvgs = ind.find_fair_value_gaps(df_4h, direction)
 
-    in_ob,  ob_zone  = ind.price_in_zone(price, obs)
-    in_fvg, fvg_zone = ind.price_in_zone(price, fvgs)
+    # Check exact zone first, then with a 0.5 ATR approach buffer
+    in_ob,  ob_zone  = ind.price_in_zone(price, obs,  buffer=atr_4h * 0.5)
+    in_fvg, fvg_zone = ind.price_in_zone(price, fvgs, buffer=atr_4h * 0.5)
 
     if in_ob:
         return True, ob_zone, "4H Order Block"
@@ -94,22 +97,24 @@ def _gate_poi(df_4h: pd.DataFrame, df_1h: pd.DataFrame,
         return True, fvg_zone, "4H FVG"
 
     # Fallback: near the most recent swing low (bullish) or swing high (bearish)
+    # Threshold widened to 2 ATR so pullbacks that don't fully reach the swing
+    # point are still captured (price retracing toward a key level).
     sh, sl = ind.swing_points(df_4h, config.SWING_LOOKBACK)
     if direction == 1:
         recent_lows = sl.dropna()
         if not recent_lows.empty:
             nearest = float(recent_lows.iloc[-1])
-            if abs(price - nearest) <= atr_4h * 0.5:
-                zone = {"low": nearest - atr_4h * 0.3,
-                        "high": nearest + atr_4h * 0.3}
+            if abs(price - nearest) <= atr_4h * 2.0:
+                zone = {"low": nearest - atr_4h * 0.5,
+                        "high": nearest + atr_4h * 0.5}
                 return True, zone, "4H Swing Low Zone"
     else:
         recent_highs = sh.dropna()
         if not recent_highs.empty:
             nearest = float(recent_highs.iloc[-1])
-            if abs(price - nearest) <= atr_4h * 0.5:
-                zone = {"low": nearest - atr_4h * 0.3,
-                        "high": nearest + atr_4h * 0.3}
+            if abs(price - nearest) <= atr_4h * 2.0:
+                zone = {"low": nearest - atr_4h * 0.5,
+                        "high": nearest + atr_4h * 0.5}
                 return True, zone, "4H Swing High Zone"
 
     return False, None, ""
@@ -159,11 +164,12 @@ def _gate_momentum(df_1h: pd.DataFrame, direction: int) -> tuple[bool, list[str]
     needed = config.ACTIVE_PROFILE["momentum_needed"]
     passed = []
 
-    # RSI — not in extreme opposing zone
+    # RSI — exclude extreme opposing zones (allow slightly extended readings
+    # because pullbacks in strong trends often occur with RSI in 70-75 range)
     rsi_v = ind.rsi(df_1h["close"], config.RSI_PERIOD).iloc[-1]
-    if direction == 1  and 35 < rsi_v < config.RSI_OVERBOUGHT:
+    if direction == 1  and 30 < rsi_v < 75:
         passed.append(f"RSI {rsi_v:.0f}")
-    elif direction == -1 and config.RSI_OVERSOLD < rsi_v < 65:
+    elif direction == -1 and 25 < rsi_v < 70:
         passed.append(f"RSI {rsi_v:.0f}")
 
     # MACD histogram direction

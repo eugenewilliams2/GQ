@@ -107,12 +107,17 @@ def swing_points(df: pd.DataFrame, n: int = 5) -> tuple[pd.Series, pd.Series]:
 def market_structure_bias(df: pd.DataFrame, n: int = 5) -> int:
     """
     Higher-timeframe bias via Break of Structure (BOS).
-    Bullish = most recent swing high AND swing low are both higher than previous.
-    Bearish = most recent swing high AND swing low are both lower than previous.
-    Returns  1 (bullish), -1 (bearish), 0 (unclear / choppy).
+    Uses a majority-vote over the last 4 swing pairs so the bias stays
+    valid during shallow pullbacks (the ICT retest entry scenario).
 
-    Uses 2-point confirmation (last vs previous swing) rather than 3, which
-    is still a valid BOS signal and fires frequently enough on real 4H data.
+    Scoring (each pair contributes 1 bullish or 1 bearish vote):
+      - swing_high[i] > swing_high[i-1]  → +1 bull
+      - swing_low[i]  > swing_low[i-1]   → +1 bull
+      - swing_high[i] < swing_high[i-1]  → +1 bear
+      - swing_low[i]  < swing_low[i-1]   → +1 bear
+    Need ≥3 of 4 votes in one direction to declare a trend.
+    Falls back to 2-point check if fewer than 3 swings available.
+    Returns 1 (bullish), -1 (bearish), 0 (unclear / choppy).
     """
     sh, sl = swing_points(df, n)
     swing_highs = sh.dropna().values
@@ -121,13 +126,28 @@ def market_structure_bias(df: pd.DataFrame, n: int = 5) -> int:
     if len(swing_highs) < 2 or len(swing_lows) < 2:
         return 0
 
-    hh = swing_highs[-1] > swing_highs[-2]
-    hl = swing_lows[-1]  > swing_lows[-2]
-    lh = swing_highs[-1] < swing_highs[-2]
-    ll = swing_lows[-1]  < swing_lows[-2]
+    # 2-point fallback when not enough history
+    if len(swing_highs) < 3 or len(swing_lows) < 3:
+        hh = swing_highs[-1] > swing_highs[-2]
+        hl = swing_lows[-1]  > swing_lows[-2]
+        lh = swing_highs[-1] < swing_highs[-2]
+        ll = swing_lows[-1]  < swing_lows[-2]
+        if hh and hl: return 1
+        if lh and ll: return -1
+        return 0
 
-    if hh and hl: return 1
-    if lh and ll: return -1
+    # Majority vote over last min(4, available) pairs
+    pairs = min(len(swing_highs) - 1, len(swing_lows) - 1, 4)
+    bull_votes = bear_votes = 0
+    for k in range(1, pairs + 1):
+        if swing_highs[-k] > swing_highs[-(k+1)]: bull_votes += 1
+        elif swing_highs[-k] < swing_highs[-(k+1)]: bear_votes += 1
+        if swing_lows[-k]  > swing_lows[-(k+1)]:  bull_votes += 1
+        elif swing_lows[-k]  < swing_lows[-(k+1)]:  bear_votes += 1
+
+    threshold = max(pairs, 3)  # need ≥3 votes to declare direction
+    if bull_votes >= threshold: return 1
+    if bear_votes >= threshold: return -1
     return 0
 
 
@@ -224,11 +244,15 @@ def _fvg_filled(data, zone, from_idx, direction) -> bool:
         return (future["high"] > zone["top"]).any()
 
 
-def price_in_zone(price: float, zones: list[dict]) -> tuple[bool, dict | None]:
-    """Check if current price falls within any zone (OB or FVG)."""
+def price_in_zone(price: float, zones: list[dict],
+                  buffer: float = 0.0) -> tuple[bool, dict | None]:
+    """
+    Check if current price falls within any zone (OB or FVG).
+    buffer: expand each zone by this much on BOTH sides (ATR-based approach margin).
+    """
     for z in zones:
-        lo = z.get("low", z.get("bottom", 0))
-        hi = z.get("high", z.get("top", 0))
+        lo = z.get("low", z.get("bottom", 0)) - buffer
+        hi = z.get("high", z.get("top", 0)) + buffer
         if lo <= price <= hi:
             return True, z
     return False, None
