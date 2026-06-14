@@ -51,6 +51,13 @@ def load_state() -> dict | None:
 def save_state(st: dict) -> None:
     with open(STATE_PATH, "w") as f:
         json.dump(st, f, indent=2)
+    # also write a non-dot copy the local web dashboard can fetch
+    servable = os.path.join(os.path.dirname(STATE_PATH), "paper_state.json")
+    try:
+        with open(servable, "w") as f:
+            json.dump(st, f)
+    except OSError:
+        pass
 
 
 def reset(strategy: str, interval: str, balance: float = 10_000.0) -> dict:

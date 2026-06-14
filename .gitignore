@@ -10,3 +10,5 @@ comparison_report.html
 backtest_report.html
 .gq_cache_*.pkl
 data/
+dashboard.html
+paper_state.json

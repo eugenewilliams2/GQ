@@ -94,12 +94,16 @@ def main() -> None:
     pp.add_argument("--status", action="store_true", help="show state without ticking")
     _add_source_args(pp)
 
+    db = sub.add_parser("dashboard", help="generate + serve the live desktop dashboard")
+    db.add_argument("--port", type=int, default=8000)
+    db.add_argument("--no-serve", action="store_true", help="just write the files")
+
     args = ap.parse_args()
     if args.cmd is None:
         ap.print_help()
         return
 
-    ppy = bars_per_year(args.interval)
+    ppy = bars_per_year(getattr(args, "interval", "1h"))
 
     if args.cmd == "compare":
         compare(_load(args), periods_per_year=ppy)
@@ -145,6 +149,24 @@ def main() -> None:
         else:
             st = paper.tick(source=args.source)
             print(paper.render(st))
+    elif args.cmd == "dashboard":
+        from forex_bot import dashboard, paper
+        import http.server, socketserver, functools
+        dashboard.write("dashboard.html")
+        st = paper.load_state()                      # refresh the servable JSON copy
+        if st is not None:
+            paper.save_state(st)
+        url = f"http://localhost:{args.port}/dashboard.html"
+        if args.no_serve:
+            print(f"wrote dashboard.html — serve this dir and open {url}")
+            return
+        handler = functools.partial(http.server.SimpleHTTPRequestHandler)
+        print(f"live dashboard -> {url}   (Ctrl+C to stop)")
+        with socketserver.TCPServer(("", args.port), handler) as httpd:
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\nstopped.")
 
 
 if __name__ == "__main__":
