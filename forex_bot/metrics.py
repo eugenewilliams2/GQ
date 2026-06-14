@@ -102,6 +102,35 @@ def probabilistic_sharpe_ratio(returns: np.ndarray, sr_benchmark: float = 0.0) -
     return float(_N.cdf(z))
 
 
+def sharpe_moments(returns: np.ndarray) -> tuple[float, int, float, float]:
+    """Return (per-bar Sharpe, n_obs, skew, kurtosis) — enough to recompute the
+    Deflated Sharpe later against any trial count, without storing the returns."""
+    r = np.asarray(returns, dtype=float)
+    n = len(r)
+    if n < 3 or r.std(ddof=1) == 0:
+        return 0.0, n, 0.0, 3.0
+    sr = r.mean() / r.std(ddof=1)
+    skew = float(((r - r.mean()) ** 3).mean() / r.std(ddof=0) ** 3)
+    kurt = float(((r - r.mean()) ** 4).mean() / r.std(ddof=0) ** 4)
+    return float(sr), n, skew, kurt
+
+
+def dsr_from_moments(sr: float, n: int, skew: float, kurt: float, n_trials: int) -> float:
+    """Deflated Sharpe from precomputed moments — lets the research loop re-judge
+    every past candidate against the GRAND TOTAL of trials ever run."""
+    if n < 3 or n_trials < 1:
+        return 0.0
+    var_sr = (1 - skew * sr + (kurt - 1) / 4 * sr ** 2) / (n - 1)
+    sigma = math.sqrt(max(var_sr, 1e-12))
+    if n_trials == 1:
+        sr0 = 0.0
+    else:
+        sr0 = sigma * ((1 - _EULER) * _N.inv_cdf(1 - 1.0 / n_trials)
+                       + _EULER * _N.inv_cdf(1 - 1.0 / (n_trials * math.e)))
+    denom = math.sqrt(max(1e-12, 1 - skew * sr + (kurt - 1) / 4 * sr ** 2))
+    return float(_N.cdf((sr - sr0) * math.sqrt(n - 1) / denom))
+
+
 def deflated_sharpe_ratio(returns: np.ndarray, n_trials: int) -> float:
     """
     DSR = PSR evaluated at the Sharpe you'd expect from the BEST of `n_trials`

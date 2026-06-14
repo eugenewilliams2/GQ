@@ -120,6 +120,10 @@ def main() -> None:
 
     sub.add_parser("app", help="launch the fully native desktop window (pywebview)")
 
+    ln = sub.add_parser("learn", help="self-test the strategy space; update the leaderboard")
+    ln.add_argument("--show", action="store_true", help="just print the current leaderboard")
+    _add_source_args(ln)
+
     ml = sub.add_parser("ml", help="train + walk-forward test the neural-net strategy")
     ml.add_argument("--thr", type=float, default=0.06, help="confidence margin to trade")
     ml.add_argument("--aggressive", action="store_true",
@@ -206,6 +210,14 @@ def main() -> None:
     elif args.cmd == "app":
         from forex_bot.native_app import main as run_app
         run_app()
+    elif args.cmd == "learn":
+        from forex_bot import autolearn
+        if args.show:
+            print(autolearn.render(autolearn.load_leaderboard()))
+        else:
+            print(f"self-testing strategy space on {args.asset}/{args.source}/{args.interval}...")
+            lb = autolearn.run_round(_load(args), args.asset, args.interval, args.source, ppy)
+            print(autolearn.render(lb))
     elif args.cmd == "ml":
         from forex_bot.ml import run_ml, holdout_ml
         mode = "AGGRESSIVE (conviction-scaled)" if args.aggressive else "flat 1% sizing"
