@@ -44,11 +44,14 @@ XSMOM_GRID = {"lookback": [120, 240, 480], "k": [1, 2], "rebalance": [12, 24]}
 def run_comparison(data: dict,
                    cost: CostModel | None = None,
                    risk_cfg: RiskConfig | None = None,
-                   n_splits: int = 4) -> list[tuple[str, metrics.Performance, np.ndarray]]:
+                   n_splits: int = 4,
+                   periods_per_year: float = metrics.BARS_PER_YEAR_1H
+                   ) -> list[tuple[str, metrics.Performance, np.ndarray]]:
     """Walk-forward every strategy; return (name, performance, OOS equity curve)
     rows sorted by out-of-sample deflated Sharpe (best first)."""
     cost = cost or CostModel()
     risk_cfg = risk_cfg or RiskConfig(risk_per_trade=0.01, max_leverage=30)
+    ppy = periods_per_year
 
     rows: list[tuple[str, metrics.Performance, np.ndarray]] = []
     for name, (cls, grid) in REGISTRY.items():
@@ -61,12 +64,12 @@ def run_comparison(data: dict,
             n_trials = wf.n_trials
         rets = np.concatenate(pooled_rets) if pooled_rets else np.array([])
         equity = 10_000 * np.cumprod(1 + rets) if len(rets) else np.array([10_000.0])
-        rows.append((name, metrics.summarize(equity, pooled_pnls, n_trials=n_trials), equity))
+        rows.append((name, metrics.summarize(equity, pooled_pnls, ppy, n_trials), equity))
 
     # cross-sectional momentum — portfolio-level, walk-forward on the shared timeline
     xs_rets, xs_trials = walk_forward_xsmom(data, XSMOM_GRID, cost, n_splits=n_splits)
     xs_equity = 10_000 * np.cumprod(1 + xs_rets) if len(xs_rets) else np.array([10_000.0])
-    rows.append(("xsmom", metrics.summarize(xs_equity, [], n_trials=xs_trials), xs_equity))
+    rows.append(("xsmom", metrics.summarize(xs_equity, [], ppy, n_trials=xs_trials), xs_equity))
 
     rows.sort(key=lambda r: r[1].deflated_sharpe, reverse=True)
     return rows
@@ -75,8 +78,9 @@ def run_comparison(data: dict,
 def compare(data: dict,
             cost: CostModel | None = None,
             risk_cfg: RiskConfig | None = None,
-            n_splits: int = 4) -> list[metrics.Performance]:
-    rows = run_comparison(data, cost, risk_cfg, n_splits)
+            n_splits: int = 4,
+            periods_per_year: float = metrics.BARS_PER_YEAR_1H) -> list[metrics.Performance]:
+    rows = run_comparison(data, cost, risk_cfg, n_splits, periods_per_year)
     _print_table([(n, p) for n, p, _ in rows])
     return [p for _, p, _ in rows]
 

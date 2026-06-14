@@ -111,6 +111,7 @@ def save_report(rows, path: str = "comparison_report.html") -> str:
     return path
 
 
-def generate(data, path: str = "comparison_report.html", n_splits: int = 4) -> str:
-    rows = run_comparison(data, n_splits=n_splits)
+def generate(data, path: str = "comparison_report.html", n_splits: int = 4,
+             periods_per_year: float = metrics.BARS_PER_YEAR_1H) -> str:
+    rows = run_comparison(data, n_splits=n_splits, periods_per_year=periods_per_year)
     return save_report(rows, path)

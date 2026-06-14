@@ -6,6 +6,7 @@ __pycache__/
 .env
 
 # data cache
-.gq_data_cache.pkl
 comparison_report.html
 backtest_report.html
+.gq_cache_*.pkl
+data/

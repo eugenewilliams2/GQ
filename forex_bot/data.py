@@ -1,23 +1,27 @@
 """
-Data loading with on-disk caching.
+Data loading with on-disk caching, over a pluggable source (see datasource.py).
 
-yfinance throttles aggressively and only serves ~730 days of hourly FX, so we
-fetch once and cache to disk. Every backtest/comparison then runs offline and
-fast. This is research data (free, hourly, no real volume) — adequate for
-relative strategy comparison, NOT for anything you'd trade real money on.
+Fetch once per (source, interval), cache to disk, then every backtest runs
+offline and fast. The cache key includes the source and interval so switching
+providers/timeframes doesn't collide. This is research data — adequate for
+relative strategy comparison, not a basis for risking real money.
 """
 
 from __future__ import annotations
 import os
 import pickle
 import time
-import warnings
 
 import pandas as pd
 
 from forex_bot import config
+from forex_bot.datasource import DataSource, get_source, bars_per_year  # noqa: F401
 
-CACHE_PATH = os.path.join(os.path.dirname(__file__), os.pardir, ".gq_data_cache.pkl")
+_CACHE_DIR = os.path.join(os.path.dirname(__file__), os.pardir)
+
+
+def _cache_path(source: str, interval: str) -> str:
+    return os.path.join(_CACHE_DIR, f".gq_cache_{source}_{interval}.pkl")
 
 
 def _resample_4h(df: pd.DataFrame) -> pd.DataFrame:
@@ -26,37 +30,27 @@ def _resample_4h(df: pd.DataFrame) -> pd.DataFrame:
         "close": "last", "volume": "sum"}).dropna()
 
 
-def _download(pair: str, start: str, end: str, retries: int = 3) -> pd.DataFrame | None:
-    import yfinance as yf
-    for _ in range(retries):
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            df = yf.download(pair, start=start, end=end, interval="1h",
-                             auto_adjust=True, progress=False)
-        if df is not None and not df.empty:
-            if isinstance(df.columns, pd.MultiIndex):
-                df = df.droplevel(1, axis=1)
-            df.columns = [str(c).lower() for c in df.columns]
-            df = df[["open", "high", "low", "close", "volume"]].dropna()
-            df.index = pd.to_datetime(df.index, utc=True)
-            return df
-        time.sleep(5)
-    return None
-
-
 def load(pairs: list[str] | None = None,
-         start: str = "2025-01-01",
+         start: str = "2020-01-01",
          end: str = "2026-06-01",
-         refresh: bool = False) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
+         source: str | DataSource = "yfinance",
+         interval: str = "1h",
+         refresh: bool = False,
+         retries: int = 3) -> dict[str, tuple[pd.DataFrame, pd.DataFrame]]:
     """
-    Returns {pair: (df_1h, df_4h)}. Uses the on-disk cache unless refresh=True or
-    the cached pair set doesn't cover what's requested.
+    Returns {pair: (df_primary, df_4h)}. df_4h is a 4H resample for intraday data,
+    else a copy of the primary frame (unused by current strategies). Uses the
+    on-disk cache for the (source, interval) pair unless refresh=True.
     """
     pairs = pairs or config.PAIRS
+    src = source if isinstance(source, DataSource) else get_source(source, interval)
+    src_name, ivl = src.name, src.interval
+    path = _cache_path(src_name, ivl)
+
     cache: dict = {}
-    if not refresh and os.path.exists(CACHE_PATH):
+    if not refresh and os.path.exists(path):
         try:
-            with open(CACHE_PATH, "rb") as f:
+            with open(path, "rb") as f:
                 cache = pickle.load(f)
         except Exception:
             cache = {}
@@ -64,10 +58,16 @@ def load(pairs: list[str] | None = None,
     missing = [p for p in pairs if p not in cache]
     if missing:
         for p in missing:
-            df = _download(p, start, end)
-            if df is not None:
-                cache[p] = (df, _resample_4h(df))
-        with open(CACHE_PATH, "wb") as f:
+            df = None
+            for _ in range(retries):
+                df = src.fetch(p, start, end)
+                if df is not None and len(df):
+                    break
+                time.sleep(3)
+            if df is not None and len(df):
+                df4 = _resample_4h(df) if ivl in ("1h", "4h") else df.copy()
+                cache[p] = (df, df4)
+        with open(path, "wb") as f:
             pickle.dump(cache, f)
 
     return {p: cache[p] for p in pairs if p in cache}
