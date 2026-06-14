@@ -1,0 +1,73 @@
+{
+  "strategy": "ml",
+  "interval": "1h",
+  "aggressive": false,
+  "asset": "crypto",
+  "source": "coinbase",
+  "balance": 10000.0,
+  "peak": 10000.0,
+  "open": {
+    "ETH-USD": {
+      "pair": "ETH-USD",
+      "dir": -1,
+      "entry": 1657.590956,
+      "stop": 1675.708456,
+      "target": 1637.887315,
+      "units": 5,
+      "opened_at": "2026-06-14T18:00:00+00:00"
+    },
+    "SOL-USD": {
+      "pair": "SOL-USD",
+      "dir": -1,
+      "entry": 67.238752,
+      "stop": 68.185821,
+      "target": 66.121268,
+      "units": 105,
+      "opened_at": "2026-06-14T18:00:00+00:00"
+    },
+    "BNB-USD": {
+      "pair": "BNB-USD",
+      "dir": 1,
+      "entry": 605.38774,
+      "stop": 599.230235,
+      "target": 611.904647,
+      "units": 16,
+      "opened_at": "2026-06-14T18:00:00+00:00"
+    },
+    "XRP-USD": {
+      "pair": "XRP-USD",
+      "dir": 1,
+      "entry": 1.133937,
+      "stop": 1.120107,
+      "target": 1.149589,
+      "units": 7230,
+      "opened_at": "2026-06-14T18:00:00+00:00"
+    },
+    "DOGE-USD": {
+      "pair": "DOGE-USD",
+      "dir": 1,
+      "entry": 0.086465,
+      "stop": 0.085388,
+      "target": 0.087692,
+      "units": 92848,
+      "opened_at": "2026-06-14T18:00:00+00:00"
+    }
+  },
+  "closed": [],
+  "history": [
+    {
+      "t": "2026-06-14T18:57:31+00:00",
+      "balance": 10000.0,
+      "equity": 9925.8,
+      "open": 5
+    },
+    {
+      "t": "2026-06-14T18:57:53+00:00",
+      "balance": 10000.0,
+      "equity": 9925.8,
+      "open": 5
+    }
+  ],
+  "created": "2026-06-14T18:57:05+00:00",
+  "last_bar": "2026-06-14T18:00:00+00:00"
+}

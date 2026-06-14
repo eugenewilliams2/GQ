@@ -174,10 +174,11 @@ def main() -> None:
     elif args.cmd == "paper":
         from forex_bot import paper
         if args.reset:
-            paper.reset(args.strategy, args.interval, name=args.name, aggressive=args.aggressive)
+            paper.reset(args.strategy, args.interval, name=args.name, aggressive=args.aggressive,
+                        asset=args.asset, source=args.source)
             agg = " aggressive" if args.aggressive else ""
-            print(f"new paper session '{args.name or 'default'}': {args.strategy}{agg} "
-                  f"on {args.interval} (start $10,000)")
+            print(f"new paper session '{args.name or 'default'}': {args.asset}/{args.strategy}{agg} "
+                  f"on {args.source}/{args.interval} (start $10,000)")
         if args.status:
             st = paper.load_state(args.name)
             print(paper.render(st) if st else "no paper session — run with --reset")

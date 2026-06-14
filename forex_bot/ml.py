@@ -63,6 +63,16 @@ def build_features(df: pd.DataFrame) -> tuple[np.ndarray, list[str]]:
         "vol_chg": vol_chg,
         "obv_slope": obv_slope,
     }
+    # time-of-day / day-of-week — lets the net learn intraday crypto seasonality
+    # (strong hours ~21-23 UTC, weekday effects). Cyclically encoded so 23->0 is
+    # continuous. On daily data the hour is constant, so these are simply inert.
+    idx = df.index
+    hour = idx.hour.to_numpy()
+    dow = idx.dayofweek.to_numpy()
+    feats["hour_sin"] = pd.Series(np.sin(2 * np.pi * hour / 24), index=idx)
+    feats["hour_cos"] = pd.Series(np.cos(2 * np.pi * hour / 24), index=idx)
+    feats["dow"] = pd.Series(dow / 6 - 0.5, index=idx)
+
     X = pd.DataFrame(feats).to_numpy(dtype=float)
     return X, list(feats)
 

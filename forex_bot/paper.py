@@ -40,10 +40,11 @@ def _paths(name: str | None) -> tuple[str, str]:
             os.path.join(_DIR, f"paper_state_{name}.json"))
 
 
-def _new_state(strategy: str, interval: str, balance: float, aggressive: bool) -> dict:
+def _new_state(strategy: str, interval: str, balance: float, aggressive: bool,
+               asset: str, source: str) -> dict:
     return {"strategy": strategy, "interval": interval, "aggressive": aggressive,
-            "balance": balance, "peak": balance, "open": {}, "closed": [],
-            "history": [], "created": _now()}
+            "asset": asset, "source": source, "balance": balance, "peak": balance,
+            "open": {}, "closed": [], "history": [], "created": _now()}
 
 
 def _now() -> str:
@@ -70,8 +71,9 @@ def save_state(st: dict, name: str | None = None) -> None:
 
 
 def reset(strategy: str, interval: str, balance: float = 10_000.0,
-          name: str | None = None, aggressive: bool = False) -> dict:
-    st = _new_state(strategy, interval, balance, aggressive)
+          name: str | None = None, aggressive: bool = False,
+          asset: str = "forex", source: str = "yfinance") -> dict:
+    st = _new_state(strategy, interval, balance, aggressive, asset, source)
     save_state(st, name)
     return st
 
@@ -92,38 +94,61 @@ def _fetch_recent(pairs, source: str, interval: str) -> dict[str, pd.DataFrame]:
     return out
 
 
-# ── Entry-signal generation (rule-based vs neural net) ────────────────────────
+# ── Per-pair signal provider (rule-based or neural net), causal ───────────────
 
-def _ml_latest_signal(df, aggressive: bool, thr: float = 0.06):
-    """Train the NN on all history up to the prior bar and score the latest bar
-    (causal: today's label is never used). Returns a StratSignal or None."""
-    import numpy as np
-    from forex_bot.ml import build_features, build_labels, MLP, MLStrategy, WARMUP
-    X, _ = build_features(df)
-    y = build_labels(df, 1)
-    n = len(df)
-    rows = np.arange(WARMUP, n - 1)
-    rows = rows[np.isfinite(X[rows]).all(1) & np.isfinite(y[rows])]
-    if len(rows) < 150 or not np.isfinite(X[n - 1]).all():
-        return None
-    net = MLP([X.shape[1], 24, 12, 1]).fit(X[rows], y[rows])
-    preds = np.full(n, np.nan)
-    preds[n - 1] = net.predict_proba(X[n - 1:n])[0]
-    strat = MLStrategy(preds, thr=thr, aggressive=aggressive)
-    strat.prepare(df)
-    return strat.signal_at(n - 1)
+class _Provider:
+    """Wraps a prepared strategy so signal(i) is O(1). For the NN, the model is
+    trained ONLY on bars before `new_start`, so replaying bars >= new_start is
+    causal (no training on the bars being acted on)."""
+
+    def __init__(self, st, df, new_start):
+        if st["strategy"] == "ml":
+            import numpy as np
+            from forex_bot.ml import build_features, build_labels, MLP, MLStrategy, WARMUP
+            X, _ = build_features(df)
+            y = build_labels(df, 1)
+            n = len(df)
+            rows = np.arange(WARMUP, max(WARMUP, new_start))
+            rows = rows[np.isfinite(X[rows]).all(1) & np.isfinite(y[rows])]
+            preds = np.full(n, np.nan)
+            if len(rows) >= 150:
+                net = MLP([X.shape[1], 24, 12, 1]).fit(X[rows], y[rows])
+                te = np.arange(new_start, n)
+                te = te[np.isfinite(X[te]).all(1)]
+                preds[te] = net.predict_proba(X[te])
+            self.strat = MLStrategy(preds, aggressive=st.get("aggressive", False))
+        else:
+            cls, _ = REGISTRY[st["strategy"]]
+            self.strat = cls()
+        self.strat.prepare(df)
+        self.wu = self.strat.warmup()
+
+    def signal(self, i):
+        return self.strat.signal_at(i) if i >= self.wu else None
 
 
-def _latest_signal(st, pair, df):
-    """Dispatch to the session's strategy for a signal on the newest bar."""
-    if st["strategy"] == "ml":
-        return _ml_latest_signal(df, aggressive=st.get("aggressive", False))
-    cls, _ = REGISTRY[st["strategy"]]
-    if len(df) < cls().warmup() + 2:
-        return None
-    strat = cls()
-    strat.prepare(df)
-    return strat.signal_at(len(df) - 1)
+def _exit_on_bar(st, pair, row, ts, cost):
+    """Close the open position on `pair` if this bar hits its stop/target."""
+    pos = st["open"][pair]
+    d, stop, tgt, units, entry = pos["dir"], pos["stop"], pos["target"], pos["units"], pos["entry"]
+    exit_px = reason = None
+    if d == 1:
+        if row["open"] <= stop:   exit_px, reason = row["open"], "gap_stop"
+        elif row["low"] <= stop:  exit_px, reason = stop, "stop"
+        elif row["high"] >= tgt:  exit_px, reason = tgt, "target"
+    else:
+        if row["open"] >= stop:   exit_px, reason = row["open"], "gap_stop"
+        elif row["high"] >= stop: exit_px, reason = stop, "stop"
+        elif row["low"] <= tgt:   exit_px, reason = tgt, "target"
+    if exit_px is None:
+        return
+    fill = cost.fill_price(exit_px, d, pair, is_entry=False)
+    pnl = (fill - entry) * d * units - cost.commission(units)
+    st["balance"] += pnl
+    st["peak"] = max(st["peak"], st["balance"])
+    st["closed"].append({**pos, "exit": fill, "pnl": round(pnl, 2),
+                         "closed_at": ts.isoformat(), "reason": reason})
+    del st["open"][pair]
 
 
 # ── Tick ──────────────────────────────────────────────────────────────────────
@@ -133,9 +158,13 @@ def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
     st = load_state(name)
     if st is None:
         raise RuntimeError("no paper session — run `paper --reset` first")
-    cost = cost or CostModel()
+    asset = st.get("asset", "forex")
+    if cost is None:
+        from forex_bot.costs import CryptoCostModel
+        cost = CryptoCostModel() if asset == "crypto" else CostModel()
     risk_cfg = risk_cfg or risk_mod.RiskConfig(risk_per_trade=0.01, max_leverage=30)
-    pairs = pairs or config.PAIRS
+    pairs = pairs or config.pairs_for(asset)
+    source = st.get("source", source)
     interval = st["interval"]
 
     data = _fetch_recent(pairs, source, interval)
@@ -144,61 +173,49 @@ def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
         save_state(st, name)
         return st
 
-    # 1) manage open positions against bars since they opened
-    for pair in list(st["open"]):
-        df = data.get(pair)
-        if df is None:
-            continue
-        pos = st["open"][pair]
-        opened = pd.to_datetime(pos["opened_at"], utc=True)
-        future = df[df.index > opened]
-        d, stop, tgt, units, entry = pos["dir"], pos["stop"], pos["target"], pos["units"], pos["entry"]
-        for ts, row in future.iterrows():
-            exit_px = reason = None
-            if d == 1:
-                if row["open"] <= stop:   exit_px, reason = row["open"], "gap_stop"
-                elif row["low"] <= stop:  exit_px, reason = stop, "stop"
-                elif row["high"] >= tgt:  exit_px, reason = tgt, "target"
-            else:
-                if row["open"] >= stop:   exit_px, reason = row["open"], "gap_stop"
-                elif row["high"] >= stop: exit_px, reason = stop, "stop"
-                elif row["low"] <= tgt:   exit_px, reason = tgt, "target"
-            if exit_px is not None:
-                fill = cost.fill_price(exit_px, d, pair, is_entry=False)
-                pnl = (fill - entry) * d * units - cost.commission(units)
-                st["balance"] += pnl
-                st["peak"] = max(st["peak"], st["balance"])
-                st["closed"].append({**pos, "exit": fill, "pnl": round(pnl, 2),
-                                     "closed_at": ts.isoformat(), "reason": reason})
-                del st["open"][pair]
-                break
-
-    # 2) look for new entries on the latest bar (flat pairs only)
+    # Replay every NEW bar since the last tick, in chronological order across all
+    # pairs. This lets a single (e.g. daily) tick open/close intraday trades at
+    # their actual hours — "trade more often, at different times of day". On the
+    # first tick (no last_bar) only the latest bar is acted on, so we don't flood
+    # the log by replaying all history as trades.
+    last_ts = pd.to_datetime(st["last_bar"], utc=True) if st.get("last_bar") else None
+    events, provs = [], {}
     for pair, df in data.items():
-        if pair in st["open"]:
-            continue
-        if not risk_mod.drawdown_ok(st["balance"], st["peak"], risk_cfg):
-            break
-        sig = _latest_signal(st, pair, df)
-        if sig is None or sig.direction not in (1, -1):
-            continue
-        price = float(df["close"].iloc[-1])
-        entry = cost.fill_price(price, sig.direction, pair, is_entry=True)
-        units = risk_mod.position_units(st["balance"], entry, sig.stop, risk_cfg,
-                                        risk_scale=getattr(sig, "risk_scale", 1.0))
-        if units <= 0:
-            continue
-        st["open"][pair] = {"pair": pair, "dir": sig.direction, "entry": round(entry, 6),
-                            "stop": round(sig.stop, 6), "target": round(sig.target, 6),
-                            "units": units, "opened_at": df.index[-1].isoformat()}
+        idx = df.index
+        new_start = len(df) - 1 if last_ts is None else int(idx.searchsorted(last_ts, side="right"))
+        new_start = max(new_start, 0)
+        provs[pair] = _Provider(st, df, new_start)
+        for i in range(new_start, len(df)):
+            events.append((idx[i], pair, i))
+    events.sort(key=lambda e: e[0])
 
-    # 3) mark-to-market equity snapshot
+    max_ts = last_ts
+    for ts, pair, i in events:
+        row = data[pair].iloc[i]
+        if pair in st["open"]:
+            _exit_on_bar(st, pair, row, ts, cost)
+        if pair not in st["open"] and risk_mod.drawdown_ok(st["balance"], st["peak"], risk_cfg):
+            sig = provs[pair].signal(i)
+            if sig is not None and sig.direction in (1, -1):
+                entry = cost.fill_price(float(row["close"]), sig.direction, pair, is_entry=True)
+                units = risk_mod.position_units(st["balance"], entry, sig.stop, risk_cfg,
+                                                risk_scale=getattr(sig, "risk_scale", 1.0))
+                if units > 0:
+                    st["open"][pair] = {"pair": pair, "dir": sig.direction,
+                                        "entry": round(entry, 6), "stop": round(sig.stop, 6),
+                                        "target": round(sig.target, 6), "units": units,
+                                        "opened_at": ts.isoformat()}
+        if max_ts is None or ts > max_ts:
+            max_ts = ts
+    if max_ts is not None:
+        st["last_bar"] = max_ts.isoformat()
+
+    # mark-to-market on the latest close per pair
     equity = st["balance"]
     for pair, pos in st["open"].items():
         df = data.get(pair)
         if df is not None:
-            px = float(df["close"].iloc[-1])
-            equity += (px - pos["entry"]) * pos["dir"] * pos["units"]
+            equity += (float(df["close"].iloc[-1]) - pos["entry"]) * pos["dir"] * pos["units"]
     st["history"].append({"t": _now(), "balance": round(st["balance"], 2),
                           "equity": round(equity, 2), "open": len(st["open"])})
     save_state(st, name)

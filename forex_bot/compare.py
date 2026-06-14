@@ -23,6 +23,7 @@ from forex_bot.strategies.meanrev import ZScoreMeanReversion
 from forex_bot.strategies.tsmom import TSMomentum
 from forex_bot.strategies.ict import ICTStrategy
 from forex_bot.strategies.fvg import FVGStrategy
+from forex_bot.strategies.vwap import VWAPReversion
 
 
 # (strategy class, parameter grid to search in-sample)
@@ -38,6 +39,8 @@ REGISTRY = {
         "swing_n": [3, 5, 8], "atr_buffer": [0.3, 0.5, 1.0]}),
     "fvg": (FVGStrategy, {
         "trend_ema": [50, 100, 200], "atr_mult": [0.5, 1.0], "rr": [1.5, 2.0]}),
+    "vwap": (VWAPReversion, {
+        "window": [12, 24, 48], "dev": [1.0, 1.5, 2.0], "atr_mult": [1.0, 1.5]}),
 }
 
 # Cross-sectional momentum is portfolio-level (own backtest), evaluated separately.
