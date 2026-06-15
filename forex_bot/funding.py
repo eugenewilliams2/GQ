@@ -1,17 +1,20 @@
 """
-Funding-rate carry — a STRUCTURAL strategy, not a price prediction.
+Funding-rate carry — with the risks that actually kill it modelled.
 
-Perpetual futures pay a periodic funding rate between longs and shorts to keep the
-perp pinned to spot. Cash-and-carry harvests it market-neutrally: hold spot, short
-the perp (or vice-versa) so you have ~no price exposure and simply collect funding.
-This is a real risk premium (you're paid to provide leverage/liquidity), unlike the
-direction-prediction strategies the harness has repeatedly shown have no edge.
+Static cash-and-carry: long spot + short perp, equal notional, delta-neutral. Its
+total return is NOT just funding:
 
-Data: OKX public funding-rate-history (free, no key, reachable here; Binance is
-geo-blocked). Honest caveats baked into the report: this model collects |funding|
-on the receiving side each period minus a flip cost, but IGNORES basis P&L
-(spot-perp convergence), the short leg's borrow cost, and liquidation risk — so the
-real net is somewhat below this. Still, it's the most legitimate edge avenue tested.
+    per period  =  funding_received  +  (basis_t-1 - basis_t)  -  financing
+    where basis = (perp - spot) / spot
+
+The directional move cancels (long spot, short perp), leaving the BASIS change as
+price P&L — and that's the real risk: during a vol spike the perp can blow to a
+large premium/discount, so a forced exit (or just mark-to-market) at a bad basis
+can erase months of funding in hours. We also charge a financing/borrow drag and
+entry/exit fees on both legs, and report TAIL metrics (worst period, 5% CVaR),
+because carry has negative skew and Sharpe alone flatters it.
+
+Data: OKX public funding + candles (Binance geo-blocked).
 """
 
 from __future__ import annotations
@@ -22,28 +25,32 @@ import pandas as pd
 
 from forex_bot import metrics
 
-OKX = "https://www.okx.com/api/v5/public/funding-rate-history"
-PERIODS_PER_YEAR = 3 * 365            # funding every ~8h
+OKX_FUND = "https://www.okx.com/api/v5/public/funding-rate-history"
+OKX_CANDLES = "https://www.okx.com/api/v5/market/history-candles"
+PERIODS_PER_YEAR = 3 * 365
 
 
-def fetch_okx_funding(inst: str, pages: int = 30) -> pd.Series:
-    """Funding-rate series for an OKX swap (e.g. 'BTC-USD-SWAP'), newest->oldest paginated."""
+def _get(url, params):
     import requests
+    try:
+        r = requests.get(url, params=params, timeout=20, headers={"User-Agent": "gq"})
+        return r.json().get("data", []) if r.status_code == 200 else []
+    except Exception:
+        return []
+
+
+def fetch_okx_funding(inst: str, pages: int = 40) -> pd.Series:
     rows, after = [], None
     for _ in range(pages):
-        params = {"instId": inst, "limit": 100}
+        p = {"instId": inst, "limit": 100}
         if after:
-            params["after"] = after
-        try:
-            r = requests.get(OKX, params=params, timeout=20, headers={"User-Agent": "gq"})
-            data = r.json().get("data", []) if r.status_code == 200 else []
-        except Exception:
-            break
+            p["after"] = after
+        data = _get(OKX_FUND, p)
         if not data:
             break
         rows += data
         after = data[-1]["fundingTime"]
-        time.sleep(0.15)
+        time.sleep(0.12)
     if not rows:
         return pd.Series(dtype=float)
     df = pd.DataFrame(rows)
@@ -52,41 +59,67 @@ def fetch_okx_funding(inst: str, pages: int = 30) -> pd.Series:
     return s[~s.index.duplicated()].sort_index()
 
 
-def carry_backtest(funding: dict[str, pd.Series], starting: float = 10_000.0,
-                   entry_bps: float = 10.0):
-    """Static cash-and-carry: hold long-spot / short-perp continuously across an
-    equal-weight basket. The short-perp side RECEIVES +funding when funding is
-    positive (longs pay shorts), which is the historical norm — so no flipping,
-    no churn. One round-trip entry/exit cost is charged at the end."""
-    if not funding:
-        return np.array([starting]), 0.0
-    mat = pd.DataFrame(funding).sort_index()
-    if len(mat) < 30:
-        return np.array([starting]), 0.0
-    eq = starting
-    equity = [eq]
-    gross_funding = 0.0
-    for _, row in mat.iterrows():
-        vals = row.dropna()
-        if len(vals):
-            r = float(vals.mean())             # short-perp receives +funding
-            eq *= 1 + r
-            gross_funding += r
-        equity.append(eq)
-    eq *= 1 - 2 * entry_bps / 10_000           # one entry + one exit on the basket
-    equity[-1] = eq
-    return np.array(equity), gross_funding
+def fetch_okx_price(inst: str, pages: int = 40) -> pd.Series:
+    """1H close series via OKX history-candles (paginated newest->oldest)."""
+    rows, after = [], None
+    for _ in range(pages):
+        p = {"instId": inst, "bar": "1H", "limit": 100}
+        if after:
+            p["after"] = after
+        data = _get(OKX_CANDLES, p)
+        if not data:
+            break
+        rows += data
+        after = data[-1][0]
+        time.sleep(0.12)
+    if not rows:
+        return pd.Series(dtype=float)
+    df = pd.DataFrame(rows)
+    s = pd.Series(df[4].astype(float).values,
+                  index=pd.to_datetime(df[0].astype(np.int64), unit="ms", utc=True))
+    return s[~s.index.duplicated()].sort_index()
+
+
+def carry_with_basis(coin: str, funding: pd.Series, perp: pd.Series, spot: pd.Series,
+                     financing_apr: float = 0.05) -> pd.Series:
+    """Per-period total carry return for one coin: funding + basis change - financing."""
+    if funding.empty or perp.empty or spot.empty:
+        return pd.Series(dtype=float)
+    # basis at each funding timestamp (nearest known prices)
+    p = perp.reindex(funding.index, method="ffill")
+    s = spot.reindex(funding.index, method="ffill")
+    basis = ((p - s) / s).dropna()
+    f = funding.reindex(basis.index)
+    basis_change = basis.shift(1) - basis            # +ve when premium compresses (we gain)
+    fin = financing_apr / PERIODS_PER_YEAR
+    ret = f + basis_change - fin
+    return ret.dropna()
 
 
 def run_funding(coins=("BTC", "ETH", "SOL", "DOGE", "XRP"),
-                flip_cost_bps: float = 10.0, pages: int = 40):
-    funding = {}
+                entry_bps: float = 10.0, financing_apr: float = 0.05, pages: int = 40):
+    per_coin = {}
     got = []
     for c in coins:
-        s = fetch_okx_funding(f"{c}-USD-SWAP", pages=pages)
-        if len(s):
-            funding[c] = s
+        fund = fetch_okx_funding(f"{c}-USDT-SWAP", pages=pages)
+        perp = fetch_okx_price(f"{c}-USDT-SWAP", pages=pages)
+        spot = fetch_okx_price(f"{c}-USDT", pages=pages)
+        r = carry_with_basis(c, fund, perp, spot, financing_apr)
+        if len(r) > 20:
+            per_coin[c] = r
             got.append(c)
-    equity, gross = carry_backtest(funding, entry_bps=flip_cost_bps)
+    if not per_coin:
+        return None, [], {}, 0
+
+    mat = pd.DataFrame(per_coin).sort_index()
+    port = mat.mean(axis=1).dropna()                 # equal-weight basket per period
+    equity = 10_000 * np.cumprod(1 + port.values)
+    equity[-1] *= 1 - 2 * entry_bps / 10_000         # round-trip entry/exit on the basket
     perf = metrics.summarize(equity, [], PERIODS_PER_YEAR, n_trials=1)
-    return perf, got, gross, len(equity)
+
+    # tail metrics — carry's real danger is the downside, not the vol
+    r = port.values
+    worst = float(r.min())
+    cvar5 = float(r[r <= np.percentile(r, 5)].mean()) if len(r) >= 20 else worst
+    tail = {"worst_period": worst, "cvar5": cvar5, "basis_vol": float(mat.std().mean())}
+    return perf, got, tail, len(port)

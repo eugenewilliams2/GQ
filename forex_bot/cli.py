@@ -131,7 +131,7 @@ def main() -> None:
     sub.add_parser("app", help="launch the fully native desktop window (pywebview)")
 
     fc = sub.add_parser("funding", help="funding-rate carry (structural, market-neutral) via OKX")
-    fc.add_argument("--flip-bps", type=float, default=10.0, help="cost in bps when a coin flips sides")
+    fc.add_argument("--financing", type=float, default=0.05, help="annual borrow/financing drag")
 
     ln = sub.add_parser("learn", help="self-test the strategy space; update the leaderboard")
     ln.add_argument("--show", action="store_true", help="just print the current leaderboard")
@@ -225,15 +225,20 @@ def main() -> None:
         run_app()
     elif args.cmd == "funding":
         from forex_bot.funding import run_funding
-        print("fetching OKX perpetual funding history (cash-and-carry)...")
-        perf, coins, gross, periods = run_funding(flip_cost_bps=args.flip_bps)
-        print(f"\nFUNDING CARRY — static cash-and-carry, market-neutral ({len(coins)} coins: {', '.join(coins)})")
-        print(f"  {periods} funding periods (~8h each); gross funding harvested: {gross*100:+.2f}%")
-        for k, v in perf.as_dict().items():
-            print(f"  {k:16}: {v}")
-        print("  CAVEAT: ignores basis P&L, short-leg borrow, liquidation risk — real net is lower.")
-        edge = perf.deflated_sharpe >= 0.95 and perf.sharpe > 0
-        print(f"  VERDICT: {'clears DSR bar — validate live before trusting' if edge else 'no clear edge after the trial penalty'}")
+        print("fetching OKX funding + perp/spot candles (carry w/ basis + borrow)...")
+        perf, coins, tail, periods = run_funding(financing_apr=args.financing)
+        if perf is None:
+            print("  no data fetched (OKX unreachable here?).")
+        else:
+            print(f"\nFUNDING CARRY — cash-and-carry w/ basis P&L + borrow ({len(coins)} coins: {', '.join(coins)})")
+            print(f"  {periods} funding periods (~8h each)")
+            for k, v in perf.as_dict().items():
+                print(f"  {k:16}: {v}")
+            print(f"  worst period   : {tail['worst_period']*100:+.2f}%   "
+                  f"5% CVaR: {tail['cvar5']*100:+.2f}%   basis vol: {tail['basis_vol']*100:.2f}%")
+            print("  CAVEAT: still ignores liquidation/exchange-blowup risk; carry has negative skew.")
+            edge = perf.deflated_sharpe >= 0.95 and perf.sharpe > 0
+            print(f"  VERDICT: {'clears DSR bar — validate live (small) before trusting' if edge else 'no clear edge after costs+basis'}")
     elif args.cmd == "learn":
         from forex_bot import autolearn
         if args.show:
