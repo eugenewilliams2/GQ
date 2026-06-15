@@ -65,7 +65,7 @@ _HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
  th{text-align:left;color:var(--mut);font-weight:500;font-size:11px;text-transform:uppercase;
   letter-spacing:.08em;padding:8px 10px;border-bottom:1px solid var(--line)}
  td{padding:9px 10px;border-bottom:1px solid rgba(110,130,170,.07)}
- .up{color:var(--up)} .down{color:var(--down)}
+ .up{color:var(--up)} .down{color:var(--down)} .mut{color:var(--mut)}
  .empty{color:var(--mut);padding:24px;text-align:center;border:1px dashed var(--line);border-radius:14px}
  .tag{font-size:10px;color:var(--mut);background:rgba(110,130,170,.12);padding:2px 7px;border-radius:6px}
  footer{color:var(--mut);font-size:11px;text-align:center;margin-top:26px;opacity:.7}
@@ -83,6 +83,7 @@ _HTML = r"""<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
   <div class="card"><div class="label">Equity curve</div><div class="chart" id="chart"></div></div>
  </div>
  <div class="stats" id="stats"></div>
+ <div class="card" id="costbar" style="margin-bottom:8px"></div>
  <h2>Open positions</h2><div class="grid" id="open"></div>
  <h2>Recent closed trades</h2><div class="card" id="closedWrap"></div>
  <footer>Simulated paper trading — no real orders, no real money. Auto-refreshes every 8s.</footer>
@@ -137,6 +138,18 @@ function render(s){
  const pf=gl>0?(gw/gl).toFixed(2):'—';
  $('stats').innerHTML=[statTile('Open',Object.keys(s.open||{}).length),statTile('Closed trades',closed.length),
   statTile('Win rate',wr.toFixed(0)+'%'),statTile('Profit factor',pf,pf!=='—'&&pf>1?'up':(pf!=='—'?'down':''))].join('');
+ // cost-bleed analysis
+ const costs=s.costs_paid||0, gross=pnl+costs, perTr=closed.length?costs/closed.length:0;
+ const eaten=gross>0?costs/gross*100:null, bleed=eaten!=null&&eaten>50;
+ $('costbar').innerHTML=`<div class="label">Cost bleed — fees + spread + slippage</div>
+  <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:baseline;margin-top:8px;font-size:13px">
+   <span class="mut">fees paid <b class="mono down">${money(costs)}</b></span>
+   <span class="mut">per trade <b class="mono">${money(perTr)}</b></span>
+   <span class="mut">gross P&L <b class="mono ${gross>=0?'up':'down'}">${money(gross)}</b></span>
+   <span class="mut">net P&L <b class="mono ${pnl>=0?'up':'down'}">${money(pnl)}</b></span>
+   ${eaten!=null?`<span class="mut">fees ate <b class="mono ${bleed?'down':'up'}">${eaten.toFixed(0)}%</b> of gross</span>`
+     :(closed.length?'<span class="mut down">strategy is net-negative before fees too</span>':'<span class="mut">no closed trades yet</span>')}
+  </div>`;
  const open=Object.values(s.open||{});
  $('open').innerHTML=open.length?open.map(posCard).join(''):'<div class="empty">no open positions</div>';
  const rows=[...closed].slice(-12).reverse().map(c=>`<tr><td><b>${c.pair.replace('=X','').replace('-USD','')}</b></td>

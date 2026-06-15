@@ -44,7 +44,7 @@ def _new_state(strategy: str, interval: str, balance: float, aggressive: bool,
                asset: str, source: str) -> dict:
     return {"strategy": strategy, "interval": interval, "aggressive": aggressive,
             "asset": asset, "source": source, "balance": balance, "peak": balance,
-            "open": {}, "closed": [], "history": [], "created": _now()}
+            "open": {}, "closed": [], "history": [], "costs_paid": 0.0, "created": _now()}
 
 
 def _now() -> str:
@@ -144,9 +144,13 @@ def _exit_on_bar(st, pair, row, ts, cost):
         return
     fill = cost.fill_price(exit_px, d, pair, is_entry=False)
     pnl = (fill - entry) * d * units - cost.commission(units)
+    # cost paid this round trip = entry slippage/spread + exit slippage/spread + commission
+    exit_cost = abs(fill - exit_px) * units + cost.commission(units)
+    trade_cost = pos.get("entry_cost", 0.0) + exit_cost
     st["balance"] += pnl
     st["peak"] = max(st["peak"], st["balance"])
-    st["closed"].append({**pos, "exit": fill, "pnl": round(pnl, 2),
+    st["costs_paid"] = st.get("costs_paid", 0.0) + trade_cost
+    st["closed"].append({**pos, "exit": fill, "pnl": round(pnl, 2), "cost": round(trade_cost, 2),
                          "closed_at": ts.isoformat(), "reason": reason})
     del st["open"][pair]
 
@@ -182,7 +186,9 @@ def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
     events, provs = [], {}
     for pair, df in data.items():
         idx = df.index
-        new_start = len(df) - 1 if last_ts is None else int(idx.searchsorted(last_ts, side="right"))
+        # count bars already seen (unit-safe vs searchsorted, which can choke on
+        # mismatched datetime resolutions between the saved timestamp and index).
+        new_start = len(df) - 1 if last_ts is None else int((idx <= last_ts).sum())
         new_start = max(new_start, 0)
         provs[pair] = _Provider(st, df, new_start)
         for i in range(new_start, len(df)):
@@ -197,13 +203,15 @@ def tick(source: str = "yfinance", pairs=None, cost: CostModel | None = None,
         if pair not in st["open"] and risk_mod.drawdown_ok(st["balance"], st["peak"], risk_cfg):
             sig = provs[pair].signal(i)
             if sig is not None and sig.direction in (1, -1):
-                entry = cost.fill_price(float(row["close"]), sig.direction, pair, is_entry=True)
+                mid = float(row["close"])
+                entry = cost.fill_price(mid, sig.direction, pair, is_entry=True)
                 units = risk_mod.position_units(st["balance"], entry, sig.stop, risk_cfg,
                                                 risk_scale=getattr(sig, "risk_scale", 1.0))
                 if units > 0:
                     st["open"][pair] = {"pair": pair, "dir": sig.direction,
                                         "entry": round(entry, 6), "stop": round(sig.stop, 6),
                                         "target": round(sig.target, 6), "units": units,
+                                        "entry_cost": round(abs(entry - mid) * units, 2),
                                         "opened_at": ts.isoformat()}
         if max_ts is None or ts > max_ts:
             max_ts = ts
@@ -238,7 +246,9 @@ def render(st: dict) -> str:
         f"  Balance        : ${st['balance']:,.2f}   (start $10,000)",
         f"  Open positions : {len(st['open'])}",
         f"  Closed trades  : {len(closed)}   win rate {wr:.0f}%",
-        f"  Total P&L      : ${st['balance']-10_000:+,.2f}",
+        f"  Total P&L (net): ${st['balance']-10_000:+,.2f}",
+        f"  Costs paid     : ${st.get('costs_paid',0.0):,.2f}   "
+        f"(gross P&L ${st['balance']-10_000+st.get('costs_paid',0.0):+,.2f})",
         f"  Drawdown       : {dd:.1f}%",
         f"  Ticks          : {len(st['history'])}   since {st['created'][:10]}",
     ]
