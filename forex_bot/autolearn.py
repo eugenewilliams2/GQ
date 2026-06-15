@@ -56,8 +56,12 @@ def _oos_returns(cls, params, data, cost, risk_cfg, train_frac):
 
 
 def run_round(data: dict, asset: str, interval: str, source: str,
-              ppy: float, train_frac: float = 0.7) -> dict:
-    cost = CryptoCostModel() if asset == "crypto" else CostModel()
+              ppy: float, train_frac: float = 0.7, execution: str = "taker") -> dict:
+    if execution == "maker":
+        cost = CryptoCostModel(spread_bps=0.0, slippage_bps=0.0, fee_bps=2.0) if asset == "crypto" \
+            else CostModel(spread_pips=0.1, slippage_pips=0.0, commission_per_lot=2.0)
+    else:
+        cost = CryptoCostModel() if asset == "crypto" else CostModel()
     risk_cfg = RiskConfig(risk_per_trade=0.01, max_leverage=30)
     lb = load_leaderboard()
 

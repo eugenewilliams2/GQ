@@ -33,10 +33,18 @@ def _load(args):
 
 
 def _cost(args, use_cost: bool = True):
-    """Asset-appropriate cost model: percentage-based for crypto, pip-based for FX."""
-    if getattr(args, "asset", "forex") == "crypto":
-        return costs.CryptoCostModel() if use_cost else costs.CRYPTO_ZERO_COST
-    return costs.CostModel() if use_cost else costs.ZERO_COST
+    """Asset- and execution-appropriate cost model. Maker = you post liquidity:
+    no spread/slippage paid, only a small maker fee (optimistic — ignores fill
+    probability / adverse selection, so it's the favourable bound)."""
+    crypto = getattr(args, "asset", "forex") == "crypto"
+    if not use_cost:
+        return costs.CRYPTO_ZERO_COST if crypto else costs.ZERO_COST
+    maker = getattr(args, "execution", "taker") == "maker"
+    if crypto:
+        return costs.CryptoCostModel(spread_bps=0.0, slippage_bps=0.0, fee_bps=2.0) if maker \
+            else costs.CryptoCostModel()
+    return costs.CostModel(spread_pips=0.1, slippage_pips=0.0, commission_per_lot=2.0) if maker \
+        else costs.CostModel()
 
 
 def _ppy(args) -> float:
@@ -74,6 +82,8 @@ def _add_source_args(p):
     p.add_argument("--source", default="yfinance",
                    choices=["yfinance", "coinbase", "csv", "stooq"])
     p.add_argument("--interval", default="1h", choices=["1h", "6h", "4h", "1d", "1wk"])
+    p.add_argument("--execution", default="taker", choices=["taker", "maker"],
+                   help="taker = pay spread+fees; maker = post liquidity (optimistic)")
 
 
 def main() -> None:
@@ -119,6 +129,9 @@ def main() -> None:
     db.add_argument("--no-serve", action="store_true", help="just write the files")
 
     sub.add_parser("app", help="launch the fully native desktop window (pywebview)")
+
+    fc = sub.add_parser("funding", help="funding-rate carry (structural, market-neutral) via OKX")
+    fc.add_argument("--flip-bps", type=float, default=10.0, help="cost in bps when a coin flips sides")
 
     ln = sub.add_parser("learn", help="self-test the strategy space; update the leaderboard")
     ln.add_argument("--show", action="store_true", help="just print the current leaderboard")
@@ -210,13 +223,25 @@ def main() -> None:
     elif args.cmd == "app":
         from forex_bot.native_app import main as run_app
         run_app()
+    elif args.cmd == "funding":
+        from forex_bot.funding import run_funding
+        print("fetching OKX perpetual funding history (cash-and-carry)...")
+        perf, coins, gross, periods = run_funding(flip_cost_bps=args.flip_bps)
+        print(f"\nFUNDING CARRY — static cash-and-carry, market-neutral ({len(coins)} coins: {', '.join(coins)})")
+        print(f"  {periods} funding periods (~8h each); gross funding harvested: {gross*100:+.2f}%")
+        for k, v in perf.as_dict().items():
+            print(f"  {k:16}: {v}")
+        print("  CAVEAT: ignores basis P&L, short-leg borrow, liquidation risk — real net is lower.")
+        edge = perf.deflated_sharpe >= 0.95 and perf.sharpe > 0
+        print(f"  VERDICT: {'clears DSR bar — validate live before trusting' if edge else 'no clear edge after the trial penalty'}")
     elif args.cmd == "learn":
         from forex_bot import autolearn
         if args.show:
             print(autolearn.render(autolearn.load_leaderboard()))
         else:
             print(f"self-testing strategy space on {args.asset}/{args.source}/{args.interval}...")
-            lb = autolearn.run_round(_load(args), args.asset, args.interval, args.source, ppy)
+            lb = autolearn.run_round(_load(args), args.asset, args.interval, args.source,
+                                     ppy, execution=args.execution)
             print(autolearn.render(lb))
     elif args.cmd == "ml":
         from forex_bot.ml import run_ml, holdout_ml
