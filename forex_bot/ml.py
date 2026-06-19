@@ -241,6 +241,66 @@ def run_ml(data: dict, cost=None, risk_cfg=None, n_splits=4, thr=0.06,
     return perf, per_pair
 
 
+import json as _json
+import os as _os
+
+BEST_NN_PATH = _os.path.join(_os.path.dirname(__file__), _os.pardir, ".best_nn.json")
+
+
+def nn_search(data: dict, asset: str, cost=None, risk_cfg=None, ppy: float = 365,
+              n_splits: int = 4):
+    """Deep-learning search: train the NN under several architectures/thresholds,
+    score each OUT-OF-SAMPLE after costs, and rank by Deflated Sharpe PENALIZED for
+    the number of configs tried. 'Keeping the best' means saving the top config by
+    that honest metric — not the prettiest backtest. Returns the ranked list."""
+    from forex_bot import metrics
+    from forex_bot.engine import backtest
+    from forex_bot.costs import CryptoCostModel, CostModel
+    from forex_bot.risk import RiskConfig
+    cost = cost or (CryptoCostModel() if asset == "crypto" else CostModel())
+    risk_cfg = risk_cfg or RiskConfig(risk_per_trade=0.01, max_leverage=30)
+
+    configs = [{"hidden": h, "thr": t}
+               for h in [(16, 8), (24, 12), (32, 16, 8)]
+               for t in [0.04, 0.06, 0.10]]
+    N = len(configs)
+    ranked = []
+    for cfg in configs:
+        pooled, pnls = [], []
+        for pair, (df, _) in data.items():
+            preds = walkforward_predict(df, n_splits=n_splits, hidden=cfg["hidden"])
+            if not np.isfinite(preds).any():
+                continue
+            res = backtest(df, MLStrategy(preds, thr=cfg["thr"]), pair, cost, risk_cfg)
+            first = int(np.argmax(np.isfinite(preds)))
+            pooled.append(metrics.returns_from_equity(res.equity[first:]))
+            pnls += res.trade_pnls
+        rets = np.concatenate(pooled) if pooled else np.array([])
+        eq = 10_000 * np.cumprod(1 + rets) if len(rets) else np.array([10_000.0])
+        perf = metrics.summarize(eq, pnls, ppy, n_trials=N)        # penalized by #configs
+        ranked.append((cfg, perf))
+
+    ranked.sort(key=lambda x: x[1].deflated_sharpe, reverse=True)
+    best_cfg, best_perf = ranked[0]
+    kept = {"asset": asset, "hidden": list(best_cfg["hidden"]), "thr": best_cfg["thr"],
+            "sharpe": best_perf.sharpe, "deflated_sharpe": best_perf.deflated_sharpe,
+            "profit_factor": best_perf.profit_factor, "n_configs": N,
+            "edge": bool(best_perf.deflated_sharpe >= 0.95 and best_perf.sharpe > 0)}
+    with open(BEST_NN_PATH, "w") as f:
+        _json.dump(kept, f, indent=2)
+    return ranked, kept
+
+
+def load_best_nn():
+    if _os.path.exists(BEST_NN_PATH):
+        try:
+            with open(BEST_NN_PATH) as f:
+                return _json.load(f)
+        except Exception:
+            pass
+    return None
+
+
 def holdout_ml(data: dict, cost=None, risk_cfg=None, train_frac=0.7, thr=0.06,
                hidden=(24, 12), ppy: float = 252, aggressive=False, horizon=1):
     """Strict single holdout: train each net ONCE on the first `train_frac`,

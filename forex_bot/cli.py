@@ -137,6 +137,9 @@ def main() -> None:
     ln.add_argument("--show", action="store_true", help="just print the current leaderboard")
     _add_source_args(ln)
 
+    ns = sub.add_parser("nn-search", help="deep-learning search over NN architectures; keep the best")
+    _add_source_args(ns)
+
     ml = sub.add_parser("ml", help="train + walk-forward test the neural-net strategy")
     ml.add_argument("--thr", type=float, default=0.06, help="confidence margin to trade")
     ml.add_argument("--aggressive", action="store_true",
@@ -248,6 +251,20 @@ def main() -> None:
             lb = autolearn.run_round(_load(args), args.asset, args.interval, args.source,
                                      ppy, execution=args.execution)
             print(autolearn.render(lb))
+    elif args.cmd == "nn-search":
+        from forex_bot.ml import nn_search
+        print(f"\nDEEP-LEARNING SEARCH — NN architectures on {args.asset}/{args.interval} "
+              f"(walk-forward, after costs)\ntraining (this is slow)...")
+        ranked, kept = nn_search(_load(args), args.asset, cost=_cost(args), ppy=ppy)
+        print(f"  {'hidden':14} {'thr':>5} {'sharpe':>7} {'PF':>5} {'DSR':>6}")
+        print("  " + "-" * 44)
+        for cfg, p in ranked[:6]:
+            print(f"  {str(tuple(cfg['hidden'])):14} {cfg['thr']:>5} {p.sharpe:>7.2f} "
+                  f"{p.profit_factor:>5.2f} {p.deflated_sharpe:>6.2f}")
+        print("  " + "-" * 44)
+        print(f"  KEPT best by OOS Deflated Sharpe: hidden={tuple(kept['hidden'])} thr={kept['thr']} "
+              f"-> DSR {kept['deflated_sharpe']:.2f}")
+        print(f"  {'⚑ clears the edge bar — validate live' if kept['edge'] else 'NOTE: best of the set, but DSR < 0.95 — no real edge, just the most robust no-edge config'}")
     elif args.cmd == "ml":
         from forex_bot.ml import run_ml, holdout_ml
         mode = "AGGRESSIVE (conviction-scaled)" if args.aggressive else "flat 1% sizing"

@@ -14,3 +14,4 @@ dashboard.html
 paper_state.json
 paper_state_*.json
 .leaderboard.json
+.best_nn.json

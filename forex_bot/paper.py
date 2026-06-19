@@ -104,7 +104,11 @@ class _Provider:
     def __init__(self, st, df, new_start):
         if st["strategy"] == "ml":
             import numpy as np
-            from forex_bot.ml import build_features, build_labels, MLP, MLStrategy, WARMUP
+            from forex_bot.ml import (build_features, build_labels, MLP, MLStrategy,
+                                      WARMUP, load_best_nn)
+            best = load_best_nn()                       # use the kept best architecture
+            hidden = tuple(best["hidden"]) if best else (24, 12)
+            thr = best["thr"] if best else 0.06
             X, _ = build_features(df)
             y = build_labels(df, 1)
             n = len(df)
@@ -112,11 +116,11 @@ class _Provider:
             rows = rows[np.isfinite(X[rows]).all(1) & np.isfinite(y[rows])]
             preds = np.full(n, np.nan)
             if len(rows) >= 150:
-                net = MLP([X.shape[1], 24, 12, 1]).fit(X[rows], y[rows])
+                net = MLP([X.shape[1], *hidden, 1]).fit(X[rows], y[rows])
                 te = np.arange(new_start, n)
                 te = te[np.isfinite(X[te]).all(1)]
                 preds[te] = net.predict_proba(X[te])
-            self.strat = MLStrategy(preds, aggressive=st.get("aggressive", False))
+            self.strat = MLStrategy(preds, thr=thr, aggressive=st.get("aggressive", False))
         else:
             cls, _ = REGISTRY[st["strategy"]]
             self.strat = cls()
