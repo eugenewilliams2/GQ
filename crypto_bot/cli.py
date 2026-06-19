@@ -206,12 +206,15 @@ def main() -> None:
             st = paper.tick(source=args.source, name=args.name)
             print(paper.render(st))
     elif args.cmd == "dashboard":
+        import os, http.server, socketserver, functools
         from crypto_bot import dashboard, paper
-        import http.server, socketserver, functools
+        os.chdir(os.path.dirname(dashboard.__file__))   # serve THIS app's own folder
         dashboard.write("dashboard.html")
-        st = paper.load_state()                      # refresh the servable JSON copy
-        if st is not None:
-            paper.save_state(st)
+        for _lbl, _f in dashboard.SESSIONS:             # refresh each session's servable copy
+            nm = None if _f == "paper_state.json" else _f[len("paper_state_"):-len(".json")]
+            s = paper.load_state(nm)
+            if s is not None:
+                paper.save_state(s, nm)
         url = f"http://localhost:{args.port}/dashboard.html"
         if args.no_serve:
             print(f"wrote dashboard.html — serve this dir and open {url}")
