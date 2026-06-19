@@ -1,0 +1,30 @@
+{
+  "tasks": {
+    "task-1781396177252-h0kh2z": {
+      "taskId": "task-1781396177252-h0kh2z",
+      "type": "bugfix",
+      "description": "Forex bot ICT 4-gate strategy produces zero signals. Diagnose which gate(s) block all trades and loosen/fix the logic so valid setups generate signals.",
+      "priority": "high",
+      "status": "completed",
+      "progress": 100,
+      "assignedTo": [],
+      "tags": [
+        "forex",
+        "strategy",
+        "zero-signals",
+        "ict"
+      ],
+      "createdAt": "2026-06-14T00:16:17.252Z",
+      "startedAt": null,
+      "completedAt": "2026-06-14T00:20:34.219Z",
+      "result": {
+        "root_cause": "strategy._validate() zero-volume check rejected every forex =X pair (Yahoo returns volume=0 for all FX bars), blocking all signals before any gate ran",
+        "fix": "guard the zero-volume rejection with `if df_1h['volume'].sum() > 0` in forex_bot/strategy.py:_validate",
+        "file": "forex_bot/strategy.py",
+        "verification": "before: 0% passed _validate, 0 signals. after: 94% passed, 31 signals over 120d x 7 pairs",
+        "gates_status": "gates were fine — diagnostic showed 17 signals; no gate changes needed"
+      }
+    }
+  },
+  "version": "3.0.0"
+}

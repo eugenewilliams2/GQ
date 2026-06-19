@@ -1,0 +1,28 @@
+{
+  "strategy": "momentum",
+  "interval": "1d",
+  "aggressive": false,
+  "asset": "crypto",
+  "source": "coinbase",
+  "balance": 10000.0,
+  "peak": 10000.0,
+  "open": {},
+  "closed": [],
+  "history": [
+    {
+      "t": "2026-06-19T23:35:48+00:00",
+      "balance": 10000.0,
+      "equity": 10000.0,
+      "open": 0
+    },
+    {
+      "t": "2026-06-19T23:49:02+00:00",
+      "balance": 10000.0,
+      "equity": 10000.0,
+      "open": 0
+    }
+  ],
+  "costs_paid": 0.0,
+  "created": "2026-06-19T23:35:31+00:00",
+  "last_bar": "2026-06-19T00:00:00+00:00"
+}

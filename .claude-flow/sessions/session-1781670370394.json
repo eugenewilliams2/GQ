@@ -1,0 +1,15 @@
+{
+  "id": "session-1781670370394",
+  "startedAt": "2026-06-17T04:26:10.394Z",
+  "cwd": "/Users/Geno/Documents/GitHub/GQ",
+  "context": {},
+  "metrics": {
+    "edits": 0,
+    "commands": 0,
+    "tasks": 0,
+    "errors": 0
+  },
+  "restoredAt": "2026-06-17T04:26:58.648Z",
+  "endedAt": "2026-06-17T04:41:47.193Z",
+  "duration": 936809
+}

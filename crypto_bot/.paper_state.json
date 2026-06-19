@@ -1,0 +1,89 @@
+{
+  "strategy": "ml",
+  "interval": "1h",
+  "aggressive": false,
+  "asset": "crypto",
+  "source": "coinbase",
+  "balance": 10000.0,
+  "peak": 10000.0,
+  "open": {
+    "ETH-USD": {
+      "pair": "ETH-USD",
+      "dir": 1,
+      "entry": 1709.281178,
+      "stop": 1685.893129,
+      "target": 1736.685306,
+      "units": 4,
+      "entry_cost": 12.28,
+      "opened_at": "2026-06-19T23:00:00+00:00"
+    },
+    "SOL-USD": {
+      "pair": "SOL-USD",
+      "dir": -1,
+      "entry": 69.285062,
+      "stop": 70.511895,
+      "target": 67.757157,
+      "units": 81,
+      "entry_cost": 10.12,
+      "opened_at": "2026-06-19T23:00:00+00:00"
+    },
+    "BNB-USD": {
+      "pair": "BNB-USD",
+      "dir": -1,
+      "entry": 579.15564,
+      "stop": 585.567491,
+      "target": 572.148763,
+      "units": 15,
+      "entry_cost": 15.67,
+      "opened_at": "2026-06-19T23:00:00+00:00"
+    },
+    "XRP-USD": {
+      "pair": "XRP-USD",
+      "dir": -1,
+      "entry": 1.132558,
+      "stop": 1.149404,
+      "target": 1.112395,
+      "units": 5936,
+      "entry_cost": 12.12,
+      "opened_at": "2026-06-19T23:00:00+00:00"
+    },
+    "ADA-USD": {
+      "pair": "ADA-USD",
+      "dir": 1,
+      "entry": 0.162191,
+      "stop": 0.159047,
+      "target": 0.166179,
+      "units": 31802,
+      "entry_cost": 9.27,
+      "opened_at": "2026-06-19T23:00:00+00:00"
+    },
+    "DOGE-USD": {
+      "pair": "DOGE-USD",
+      "dir": -1,
+      "entry": 0.0831,
+      "stop": 0.084254,
+      "target": 0.081744,
+      "units": 86651,
+      "entry_cost": 12.98,
+      "opened_at": "2026-06-19T23:00:00+00:00"
+    }
+  },
+  "closed": [],
+  "history": [
+    {
+      "t": "2026-06-19T23:35:31+00:00",
+      "balance": 10000.0,
+      "equity": 9927.56,
+      "open": 6
+    },
+    {
+      "t": "2026-06-19T23:48:44+00:00",
+      "balance": 10000.0,
+      "equity": 9934.48,
+      "open": 6
+    }
+  ],
+  "costs_paid": 0.0,
+  "created": "2026-06-19T23:35:00+00:00",
+  "last_bar": "2026-06-19T23:00:00+00:00"
+}

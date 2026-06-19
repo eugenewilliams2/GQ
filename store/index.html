@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>70 AI Specialists for Claude — Your entire team, one payment</title>
+<meta name="description" content="70 ready-to-use expert AI prompts that turn Claude into copywriters, marketers, analysts and more. One-time payment. Keep forever." />
+<style>
+  :root{
+    --bg:#0a0612; --bg2:#120a1f; --card:#170d28; --line:#2a1c44;
+    --txt:#f3eefb; --mut:#a99cc4; --accent:#ff7a18; --accent2:#ff5b8a;
+    --purple:#8b5cf6; --glow:rgba(139,92,246,.45); --ok:#34d399;
+    --radius:18px; --max:1080px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:radial-gradient(1200px 700px at 50% -10%,#2a1149 0%,var(--bg) 55%);
+    color:var(--txt);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 20px}
+  .accent{color:var(--accent)}
+  .grad{background:linear-gradient(90deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* nav */
+  nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);
+    background:rgba(10,6,18,.7);border-bottom:1px solid var(--line)}
+  nav .wrap{display:flex;align-items:center;justify-content:space-between;height:64px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:.3px}
+  .star{width:26px;height:26px;flex:none}
+  .nav-cta{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#1a0a00;
+    font-weight:800;padding:10px 18px;border-radius:999px;font-size:14px;white-space:nowrap}
+  .nav-links{display:flex;gap:26px;font-size:14px;color:var(--mut)}
+  .nav-links a:hover{color:var(--txt)}
+  @media(max-width:760px){.nav-links{display:none}}
+
+  /* hero */
+  .hero{text-align:center;padding:70px 0 40px}
+  .pill{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--mut);
+    border:1px solid var(--line);background:var(--card);padding:7px 15px;border-radius:999px;margin-bottom:24px}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 10px var(--ok)}
+  h1{font-size:clamp(34px,6vw,62px);line-height:1.05;font-weight:900;letter-spacing:-1px}
+  .sub{color:var(--mut);font-size:clamp(16px,2.4vw,21px);max-width:620px;margin:22px auto 32px}
+  .cta-row{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;align-items:center}
+  .btn{display:inline-flex;align-items:center;gap:10px;font-weight:800;padding:16px 30px;
+    border-radius:14px;border:none;cursor:pointer;font-size:16px;transition:.15s;font-family:inherit}
+  .btn-primary{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#1a0a00;
+    box-shadow:0 12px 40px rgba(255,91,138,.35)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 16px 50px rgba(255,91,138,.5)}
+  .btn-ghost{background:var(--card);color:var(--txt);border:1px solid var(--line)}
+  .btn-ghost:hover{border-color:var(--purple)}
+  .guarantee{color:var(--mut);font-size:13px;margin-top:16px}
+
+  /* device */
+  .device{margin:46px auto 0;max-width:460px;position:relative}
+  .device svg{width:100%;height:auto;filter:drop-shadow(0 30px 60px var(--glow))}
+
+  /* trust strip */
+  .trust{display:flex;gap:30px;justify-content:center;flex-wrap:wrap;color:var(--mut);
+    font-size:14px;margin-top:42px;padding-top:28px;border-top:1px solid var(--line)}
+  .trust b{color:var(--txt)}
+
+  /* sections */
+  section{padding:64px 0}
+  .eyebrow{color:var(--accent);font-weight:800;letter-spacing:2px;font-size:13px;text-transform:uppercase}
+  h2{font-size:clamp(26px,4vw,40px);font-weight:900;letter-spacing:-.5px;margin:10px 0 14px}
+  .lead{color:var(--mut);max-width:640px;font-size:18px}
+  .center{text-align:center}.center .lead{margin:0 auto}
+
+  /* problem cards */
+  .grid{display:grid;gap:18px;margin-top:38px}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:820px){.g3,.g2{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+  .card h3{font-size:19px;margin-bottom:8px}
+  .card p{color:var(--mut);font-size:15px}
+  .ico{width:42px;height:42px;border-radius:11px;display:grid;place-items:center;margin-bottom:16px;
+    background:linear-gradient(135deg,rgba(255,122,24,.2),rgba(139,92,246,.2));font-size:22px}
+
+  /* category list */
+  .cats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:34px}
+  @media(max-width:820px){.cats{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.cats{grid-template-columns:1fr}}
+  .cat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    display:flex;align-items:center;gap:14px}
+  .cat .n{font-size:13px;color:var(--mut)}
+  .cat .e{font-size:24px}
+  .cat b{display:block;font-size:15px}
+
+  /* pricing */
+  .price-wrap{display:flex;justify-content:center;margin-top:40px}
+  .price{background:linear-gradient(180deg,var(--card),#13091f);border:1px solid var(--purple);
+    border-radius:24px;padding:40px;max-width:440px;width:100%;text-align:center;position:relative;
+    box-shadow:0 30px 80px rgba(139,92,246,.25)}
+  .ribbon{position:absolute;top:-14px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(90deg,var(--accent),var(--accent2));color:#1a0a00;font-weight:800;
+    font-size:12px;padding:6px 16px;border-radius:999px;white-space:nowrap}
+  .amount{font-size:60px;font-weight:900;line-height:1}
+  .amount small{font-size:18px;color:var(--mut);font-weight:600}
+  .was{color:var(--mut);text-decoration:line-through;font-size:17px}
+  .plist{text-align:left;margin:26px 0;display:grid;gap:12px}
+  .plist li{list-style:none;display:flex;gap:11px;align-items:flex-start;font-size:15px}
+  .check{color:var(--ok);flex:none;font-weight:900}
+  .price .btn{width:100%;justify-content:center;margin-top:6px}
+
+  /* studio */
+  .studio{background:var(--bg2);border:1px solid var(--line);border-radius:24px;padding:32px;margin-top:38px}
+  .studio .field{margin-bottom:16px}
+  label{display:block;font-size:13px;font-weight:700;color:var(--mut);margin-bottom:7px}
+  input,select,textarea{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--txt);
+    padding:13px 15px;border-radius:11px;font:inherit;font-size:15px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--purple)}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:600px){.row2{grid-template-columns:1fr}}
+  .out{margin-top:22px;display:none;gap:14px;grid-template-columns:1fr 1fr}
+  @media(max-width:700px){.out{grid-template-columns:1fr}}
+  .out.show{display:grid}
+  .outcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative}
+  .outcard .tag{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);font-weight:800}
+  .outcard .body{margin-top:10px;font-size:14.5px;white-space:pre-wrap;color:#e7defc}
+  .copy{position:absolute;top:14px;right:14px;background:var(--bg);border:1px solid var(--line);
+    color:var(--mut);font-size:11px;padding:4px 10px;border-radius:8px;cursor:pointer}
+  .copy:hover{color:var(--txt);border-color:var(--purple)}
+
+  /* faq */
+  details{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 22px;margin-bottom:12px}
+  summary{cursor:pointer;font-weight:700;list-style:none;display:flex;justify-content:space-between;align-items:center}
+  summary::-webkit-details-marker{display:none}
+  summary::after{content:"+";color:var(--accent);font-size:22px;font-weight:400}
+  details[open] summary::after{content:"–"}
+  details p{color:var(--mut);margin-top:12px;font-size:15px}
+
+  /* final cta */
+  .final{text-align:center;background:linear-gradient(180deg,transparent,rgba(139,92,246,.12));
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+
+  footer{padding:40px 0;color:var(--mut);font-size:13px;text-align:center}
+  footer .disc{max-width:720px;margin:0 auto 18px;line-height:1.7;opacity:.8}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ok);color:#04110b;font-weight:800;padding:12px 22px;border-radius:12px;
+    opacity:0;transition:.25s;pointer-events:none;z-index:99}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav><div class="wrap">
+  <div class="logo">
+    <svg class="star" viewBox="0 0 100 100"><g fill="#ff7a18"><path d="M50 5l8 30 22-18-14 26 30 2-30 4 14 26-22-18-8 30-8-30-22 18 14-26-30-4 30-2-14-26 22 18z"/></g></svg>
+    AI Specialists
+  </div>
+  <div class="nav-links">
+    <a href="#inside">What's inside</a>
+    <a href="#studio">Free studio</a>
+    <a href="#pricing">Pricing</a>
+    <a href="#faq">FAQ</a>
+  </div>
+  <a href="#pricing" class="nav-cta">Get Instant Access</a>
+</div></nav>
+
+<!-- HERO -->
+<header class="hero"><div class="wrap">
+  <div class="pill"><span class="dot"></span> 70 specialists · instant download · works in Claude</div>
+  <h1>Get <span class="grad">70 AI Specialists</span><br>for the price of one coffee run</h1>
+  <p class="sub">Copywriters, marketers, analysts, closers, coders — 70 expert prompts that turn Claude into an entire team. One payment. Keep forever.</p>
+  <div class="cta-row">
+    <a href="#pricing" class="btn btn-primary">⬇ Get Instant Access — $57</a>
+    <a href="#studio" class="btn btn-ghost">Try the free studio</a>
+  </div>
+  <div class="guarantee">🔒 30-day money-back guarantee · instant delivery · no subscription</div>
+
+  <div class="device">
+    <svg viewBox="0 0 460 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#1c1c22"/><stop offset="1" stop-color="#050507"/>
+        </linearGradient>
+        <radialGradient id="halo" cx="50%" cy="40%" r="60%">
+          <stop offset="0" stop-color="#8b5cf6" stop-opacity=".55"/><stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      <ellipse cx="230" cy="150" rx="230" ry="150" fill="url(#halo)"/>
+      <rect x="70" y="70" width="320" height="150" rx="20" fill="url(#body)" stroke="#333" stroke-width="1.5"/>
+      <g fill="#ff7a18"><path d="M230 105l5 19 14-11-9 16 19 1-19 3 9 16-14-11-5 19-5-19-14 11 9-16-19-3 19-1-9-16 14 11z"/></g>
+      <text x="230" y="165" text-anchor="middle" fill="#cfc6e6" font-size="13" font-family="sans-serif" font-style="italic">70 AI Specialists for Claude</text>
+      <rect x="92" y="120" width="46" height="50" rx="5" fill="#0a1530"/>
+      <rect x="98" y="128" width="34" height="3" rx="1.5" fill="#2b6fff"/><rect x="98" y="136" width="28" height="3" rx="1.5" fill="#2b6fff"/><rect x="98" y="144" width="32" height="3" rx="1.5" fill="#2b6fff"/>
+      <rect x="322" y="120" width="46" height="50" rx="5" fill="#0a1530"/>
+      <rect x="330" y="128" width="34" height="3" rx="1.5" fill="#2b6fff"/><rect x="330" y="136" width="28" height="3" rx="1.5" fill="#2b6fff"/><rect x="330" y="144" width="32" height="3" rx="1.5" fill="#2b6fff"/>
+      <rect x="218" y="200" width="24" height="14" rx="3" fill="#222"/>
+    </svg>
+  </div>
+
+  <div class="trust">
+    <span>⚡ <b>Instant</b> download</span>
+    <span>🔁 Works in <b>Claude.ai, API & Code</b></span>
+    <span>💳 <b>One-time</b> — no subscription</span>
+    <span>↩ <b>30-day</b> guarantee</span>
+  </div>
+</div></header>
+
+<!-- PROBLEM -->
+<section><div class="wrap">
+  <p class="eyebrow">The problem</p>
+  <h2>You need help. Hiring is brutally expensive.</h2>
+  <p class="lead">A freelancer is $2,000–$5,000/month. A full-time hire is far more. And you still wait days for a reply.</p>
+  <div class="grid g3">
+    <div class="card"><div class="ico">💸</div><h3>Freelancers add up</h3><p>$2k–$5k a month, per role. Need a copywriter <em>and</em> a marketer? Double it.</p></div>
+    <div class="card"><div class="ico">⏳</div><h3>Everyone's slow</h3><p>You wait days for a draft, then more days for revisions. Momentum dies.</p></div>
+    <div class="card"><div class="ico">🤹</div><h3>You do it all</h3><p>So you become the copywriter, marketer, analyst and coder — and burn out.</p></div>
+  </div>
+</div></section>
+
+<!-- SOLUTION / INSIDE -->
+<section id="inside"><div class="wrap center">
+  <p class="eyebrow">The fix</p>
+  <h2>One pack. <span class="grad">70 specialists.</span> Available 24/7.</h2>
+  <p class="lead">Each specialist is a ready-to-paste expert prompt. Drop it into Claude, type your task, get senior-level work in seconds — no sick days, no waiting, no monthly bill.</p>
+  <div class="cats" id="catList"></div>
+</div></section>
+
+<!-- STUDIO -->
+<section id="studio"><div class="wrap">
+  <div class="center">
+    <p class="eyebrow">Free taste · no signup</p>
+    <h2>AI Marketing Studio</h2>
+    <p class="lead">This is a sample of what the pack does. Describe your product and instantly generate marketing copy — caption, post, hook, ad & email. Powered by the same templates inside.</p>
+  </div>
+  <div class="studio">
+    <div class="row2">
+      <div class="field"><label>What are you selling?</label>
+        <input id="sProduct" placeholder="e.g. 70 AI Specialists for Claude" value="70 AI Specialists for Claude"/></div>
+      <div class="field"><label>Who's it for?</label>
+        <input id="sAudience" placeholder="e.g. solo founders & creators" value="solopreneurs and creators"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Biggest benefit</label>
+        <input id="sBenefit" placeholder="e.g. an entire team for one payment" value="an entire expert team for one payment"/></div>
+      <div class="field"><label>Vibe</label>
+        <select id="sTone">
+          <option>Bold & punchy</option><option>Friendly & warm</option>
+          <option>Premium & sleek</option><option>Hype & energetic</option>
+        </select></div>
+    </div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="generate()">✨ Generate marketing copy</button>
+    <div class="out" id="out"></div>
+  </div>
+</div></section>
+
+<!-- PRICING -->
+<section id="pricing"><div class="wrap center">
+  <p class="eyebrow">Simple pricing</p>
+  <h2>One payment. Keep it forever.</h2>
+  <div class="price-wrap"><div class="price">
+    <span class="ribbon">⚡ LAUNCH PRICE</span>
+    <p class="was">Build-it-yourself value: $540+</p>
+    <div class="amount">$57<small> one-time</small></div>
+    <ul class="plist">
+      <li><span class="check">✓</span> All 70 specialist prompts (instant download)</li>
+      <li><span class="check">✓</span> Marketing, sales, copy, finance, coding, design & more</li>
+      <li><span class="check">✓</span> Works in Claude.ai, the API, and Claude Code</li>
+      <li><span class="check">✓</span> Free lifetime updates as new specialists are added</li>
+      <li><span class="check">✓</span> 30-day no-questions money-back guarantee</li>
+    </ul>
+    <a href="#" id="buyBtn" class="btn btn-primary">⬇ Get Instant Access</a>
+    <p class="guarantee">Secure checkout · instant delivery to your email</p>
+  </div></div>
+  <p class="lead center" style="margin-top:26px;font-size:15px">No subscription. No upsell maze. Buy once, use forever.</p>
+</div></section>
+
+<!-- FAQ -->
+<section id="faq"><div class="wrap">
+  <div class="center"><p class="eyebrow">Questions</p><h2>Good to know</h2></div>
+  <div style="max-width:760px;margin:34px auto 0">
+    <details open><summary>What exactly do I get?</summary><p>A document with 70 expert prompts ("specialists"). Each one is a copy-paste system prompt — paste it into Claude, type your task, and get specialist-level output. Categories include marketing, copywriting, sales, business, finance, coding, design, productivity and career.</p></details>
+    <details><summary>Do I need a paid Claude account?</summary><p>The prompts work in the free and paid versions of Claude.ai, as well as the Claude API and Claude Code. A paid plan gives you higher limits, but it isn't required to use the pack.</p></details>
+    <details><summary>Is this just ChatGPT prompts renamed?</summary><p>No — these are written and tuned for how Claude responds, with clear roles, constraints and output formats. They work great in other assistants too, but they're built for Claude.</p></details>
+    <details><summary>Why $57 and not a subscription?</summary><p>It's a digital product — you buy it once and keep it. We'd rather charge a fair one-time price and earn your trust than trap you in a monthly bill. Updates are free.</p></details>
+    <details><summary>What if it's not for me?</summary><p>30-day money-back guarantee. Email us, get a refund, keep things friendly. No risk.</p></details>
+    <details><summary>Is this a "get rich quick" thing?</summary><p>No. It's a productivity tool that saves you time and money on expert help. What you earn depends on the work you put in — we don't promise income.</p></details>
+  </div>
+</div></section>
+
+<!-- FINAL CTA -->
+<section class="final"><div class="wrap center">
+  <h2>Your team is one click away.</h2>
+  <p class="lead center" style="margin:14px auto 28px">70 specialists. $57 once. Keep them forever.</p>
+  <a href="#pricing" class="btn btn-primary">⬇ Get Instant Access — $57</a>
+</div></section>
+
+<footer><div class="wrap">
+  <p class="disc">This is a digital productivity product (a pack of AI prompts). It is not financial, legal, or professional advice, and it does not guarantee income or results — outcomes depend on your own effort and inputs. Specialists covering finance, legal, or health topics provide general education only; confirm important decisions with a qualified professional. Not affiliated with or endorsed by Anthropic; "Claude" is a trademark of Anthropic.</p>
+  <p>© <span id="yr"></span> GQ · 70 AI Specialists for Claude · <a href="#faq" class="accent">FAQ</a> · Contact: you@yourdomain.com</p>
+</div></footer>
+
+<div class="toast" id="toast">Copied ✓</div>
+
+<script>
+/* ---- category render ---- */
+const cats=[
+ ["🚀","Marketing & Growth","10 specialists"],["✍️","Copywriting & Content","10 specialists"],
+ ["💰","Sales & Persuasion","8 specialists"],["📊","Business & Strategy","8 specialists"],
+ ["📈","Finance & Analytics","7 specialists"],["💻","Coding & Tech","9 specialists"],
+ ["🎨","Design & Creative","6 specialists"],["⚡","Productivity & Ops","7 specialists"],
+ ["🌱","Career & Personal","5 specialists"]
+];
+document.getElementById('catList').innerHTML=cats.map(c=>
+ `<div class="cat"><span class="e">${c[0]}</span><div><b>${c[1]}</b><span class="n">${c[2]}</span></div></div>`).join('');
+document.getElementById('yr').textContent=new Date().getFullYear();
+
+/* ---- marketing studio (offline template engine) ---- */
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function generate(){
+  const p=val('sProduct','your product'), a=val('sAudience','your people'),
+        b=val('sBenefit','a real edge'), tone=document.getElementById('sTone').value;
+  const emoji={'Bold & punchy':'🔥','Friendly & warm':'🌟','Premium & sleek':'◆','Hype & energetic':'🚀'}[tone];
+  const hooks=[`Stop scrolling.`,`Nobody told you this:`,`The fastest way to ${b}?`,`Here's what changed everything:`,`Read this if you're ${a.split(' ')[0]}.`];
+  const cta=pick([`Tap the link to start.`,`Grab it before the price moves.`,`Link in bio.`,`Get instant access today.`]);
+
+  const ig = `${emoji} ${pick(hooks)}\n\n${p} gives ${a} ${b} — without the wait or the giant bill.\n\nSave this. Then go get it. ${cta}\n\n#${a.replace(/[^a-z]/gi,'')} #AItools #productivity #${p.split(' ')[0].toLowerCase()}`;
+  const x = `${pick(hooks)}\n\n${p} = ${b}.\n\nMade for ${a}.\n\n${cta}`;
+  const tk = `HOOK (0-3s): "${pick(hooks)}"\nMIDDLE: Show ${p} solving the #1 pain for ${a}. One clear before/after.\nCTA: "${cta}"\n[Trending audio · fast cuts · text-on-screen]`;
+  const ad = `Headline: ${capitalize(b)} — without hiring anyone.\n\nBody: ${capitalize(a)}, meet ${p}. ${capitalize(b)} for one simple payment. No subscription, no waiting, no overwhelm.\n\nCTA button: Get Instant Access`;
+  const em = `Subject: ${pick([`${emoji} `+capitalize(b),`The shortcut for ${a}`,`Open this, ${a.split(' ')[0]} 👀`])}\nPreview: ${capitalize(p)} — keep it forever.\n\nBody: Hiring help is slow and expensive. ${capitalize(p)} gives you ${b} instantly. ${cta}`;
+
+  const blocks=[['Instagram caption',ig],['X / Twitter post',x],['TikTok / Reel script',tk],['Paid ad',ad],['Email',em]];
+  document.getElementById('out').innerHTML=blocks.map((bk,i)=>
+   `<div class="outcard"><span class="tag">${bk[0]}</span><button class="copy" onclick="copyBlk(${i})">copy</button><div class="body" id="blk${i}">${esc(bk[1])}</div></div>`).join('');
+  document.getElementById('out').classList.add('show');
+  window._blocks=blocks;
+}
+function val(id,f){const v=document.getElementById(id).value.trim();return v||f;}
+function capitalize(s){return s.charAt(0).toUpperCase()+s.slice(1);}
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+function copyBlk(i){navigator.clipboard.writeText(window._blocks[i][1]).then(toast);}
+function toast(){const t=document.getElementById('toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400);}
+
+/* ---- checkout ----
+   STEP 1: Create the product on Gumroad (free): https://gumroad.com
+           Upload store/print.html saved as PDF (or the .md) as the file.
+   STEP 2: Copy your product's share URL and paste it below.
+   STEP 3: Done — every "Get Instant Access" button now sends buyers to checkout.
+   (Gumroad overlay is enabled automatically when the URL is a gumroad.com link.) */
+const CHECKOUT_URL = ""; // e.g. "https://gqgeno.gumroad.com/l/ai-specialists"
+
+function goCheckout(e){
+  if(e) e.preventDefault();
+  if(!CHECKOUT_URL){
+    alert("⚙️ Checkout not connected yet.\n\n1) Make the product on Gumroad (free).\n2) Upload the PDF or .md as the file.\n3) Paste your product link into CHECKOUT_URL in index.html.\n\nThen these buttons take buyers straight to checkout.");
+    return;
+  }
+  window.location.href = CHECKOUT_URL;
+}
+// Wire every checkout button/link to the same handler
+document.querySelectorAll('#buyBtn, .nav-cta, a[href="#pricing"].btn-primary, .final a.btn-primary')
+  .forEach(el => el.addEventListener('click', goCheckout));
+
+// Optional Gumroad overlay (nicer than a redirect): if the URL is a Gumroad link,
+// load their script so checkout opens in a lightbox instead of navigating away.
+if(/gumroad\.com/.test(CHECKOUT_URL)){
+  const s=document.createElement('script');
+  s.src='https://gumroad.com/js/gumroad.js'; document.body.appendChild(s);
+  document.querySelectorAll('#buyBtn').forEach(b=>{b.href=CHECKOUT_URL;b.classList.add('gumroad-button');});
+}
+</script>
+</body>
+</html>

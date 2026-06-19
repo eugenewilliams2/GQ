@@ -1,0 +1,99 @@
+{
+  "strategy": "fvg",
+  "interval": "1d",
+  "aggressive": false,
+  "asset": "forex",
+  "source": "yfinance",
+  "balance": 10000.0,
+  "peak": 10000.0,
+  "open": {
+    "EURUSD=X": {
+      "pair": "EURUSD=X",
+      "dir": -1,
+      "entry": 1.14685,
+      "stop": 1.165534,
+      "target": 1.109693,
+      "units": 5352,
+      "entry_cost": 0.37,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "GBPUSD=X": {
+      "pair": "GBPUSD=X",
+      "dir": -1,
+      "entry": 1.323644,
+      "stop": 1.348412,
+      "target": 1.27432,
+      "units": 4037,
+      "entry_cost": 0.28,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDJPY=X": {
+      "pair": "USDJPY=X",
+      "dir": 1,
+      "entry": 161.286999,
+      "stop": 159.877008,
+      "target": 164.08598,
+      "units": 70,
+      "entry_cost": 0.49,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "AUDUSD=X": {
+      "pair": "AUDUSD=X",
+      "dir": -1,
+      "entry": 0.701487,
+      "stop": 0.710339,
+      "target": 0.683993,
+      "units": 11296,
+      "entry_cost": 0.79,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDCAD=X": {
+      "pair": "USDCAD=X",
+      "dir": 1,
+      "entry": 1.41497,
+      "stop": 1.396337,
+      "target": 1.452025,
+      "units": 5366,
+      "entry_cost": 0.38,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "NZDUSD=X": {
+      "pair": "NZDUSD=X",
+      "dir": -1,
+      "entry": 0.574148,
+      "stop": 0.586088,
+      "target": 0.550476,
+      "units": 8374,
+      "entry_cost": 0.59,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDCHF=X": {
+      "pair": "USDCHF=X",
+      "dir": 1,
+      "entry": 0.80647,
+      "stop": 0.78767,
+      "target": 0.84386,
+      "units": 5319,
+      "entry_cost": 0.37,
+      "opened_at": "2026-06-20T00:00:00+00:00"
+    }
+  },
+  "closed": [],
+  "history": [
+    {
+      "t": "2026-06-19T23:34:56+00:00",
+      "balance": 10000.0,
+      "equity": 9996.72,
+      "open": 7
+    },
+    {
+      "t": "2026-06-19T23:48:05+00:00",
+      "balance": 10000.0,
+      "equity": 9996.72,
+      "open": 7
+    }
+  ],
+  "costs_paid": 0.0,
+  "created": "2026-06-19T23:34:54+00:00",
+  "last_bar": "2026-06-20T00:00:00+00:00"
+}

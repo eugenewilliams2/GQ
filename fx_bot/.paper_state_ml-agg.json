@@ -1,0 +1,89 @@
+{
+  "strategy": "ml",
+  "interval": "1d",
+  "aggressive": true,
+  "asset": "forex",
+  "source": "yfinance",
+  "balance": 10000.0,
+  "peak": 10000.0,
+  "open": {
+    "EURUSD=X": {
+      "pair": "EURUSD=X",
+      "dir": -1,
+      "entry": 1.14685,
+      "stop": 1.16068,
+      "target": 1.126282,
+      "units": 21693,
+      "entry_cost": 1.52,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "GBPUSD=X": {
+      "pair": "GBPUSD=X",
+      "dir": 1,
+      "entry": 1.323784,
+      "stop": 1.304661,
+      "target": 1.352294,
+      "units": 15687,
+      "entry_cost": 1.1,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDJPY=X": {
+      "pair": "USDJPY=X",
+      "dir": 1,
+      "entry": 161.286999,
+      "stop": 160.190021,
+      "target": 162.914965,
+      "units": 273,
+      "entry_cost": 1.91,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDCAD=X": {
+      "pair": "USDCAD=X",
+      "dir": 1,
+      "entry": 1.41497,
+      "stop": 1.400955,
+      "target": 1.435817,
+      "units": 21405,
+      "entry_cost": 1.5,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "NZDUSD=X": {
+      "pair": "NZDUSD=X",
+      "dir": 1,
+      "entry": 0.574288,
+      "stop": 0.563701,
+      "target": 0.589992,
+      "units": 28338,
+      "entry_cost": 1.98,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDCHF=X": {
+      "pair": "USDCHF=X",
+      "dir": -1,
+      "entry": 0.80633,
+      "stop": 0.81848,
+      "target": 0.78828,
+      "units": 24691,
+      "entry_cost": 1.73,
+      "opened_at": "2026-06-20T00:00:00+00:00"
+    }
+  },
+  "closed": [],
+  "history": [
+    {
+      "t": "2026-06-19T23:34:59+00:00",
+      "balance": 10000.0,
+      "equity": 9990.25,
+      "open": 6
+    },
+    {
+      "t": "2026-06-19T23:48:07+00:00",
+      "balance": 10000.0,
+      "equity": 9990.25,
+      "open": 6
+    }
+  ],
+  "costs_paid": 0.0,
+  "created": "2026-06-19T23:34:57+00:00",
+  "last_bar": "2026-06-20T00:00:00+00:00"
+}

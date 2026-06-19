@@ -2,36 +2,9 @@
   "strategy": "ml",
   "interval": "1d",
   "aggressive": true,
-  "balance": 10000.0,
-  "peak": 10000.0,
+  "balance": 10576.579641999992,
+  "peak": 10576.579641999992,
   "open": {
-    "EURUSD=X": {
-      "pair": "EURUSD=X",
-      "dir": 1,
-      "entry": 1.157344,
-      "stop": 1.145378,
-      "target": 1.175117,
-      "units": 25071,
-      "opened_at": "2026-06-12T00:00:00+00:00"
-    },
-    "GBPUSD=X": {
-      "pair": "GBPUSD=X",
-      "dir": -1,
-      "entry": 1.340718,
-      "stop": 1.354531,
-      "target": 1.320173,
-      "units": 21550,
-      "opened_at": "2026-06-14T00:00:00+00:00"
-    },
-    "USDJPY=X": {
-      "pair": "USDJPY=X",
-      "dir": 1,
-      "entry": 160.191998,
-      "stop": 159.384312,
-      "target": 161.386026,
-      "units": 371,
-      "opened_at": "2026-06-14T00:00:00+00:00"
-    },
     "USDCHF=X": {
       "pair": "USDCHF=X",
       "dir": 1,
@@ -58,9 +31,82 @@
       "target": 0.568961,
       "units": 30661,
       "opened_at": "2026-06-14T00:00:00+00:00"
+    },
+    "EURUSD=X": {
+      "pair": "EURUSD=X",
+      "dir": 1,
+      "entry": 1.14489,
+      "stop": 1.131723,
+      "target": 1.164465,
+      "units": 22093,
+      "entry_cost": 1.55,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "GBPUSD=X": {
+      "pair": "GBPUSD=X",
+      "dir": 1,
+      "entry": 1.319157,
+      "stop": 1.30065,
+      "target": 1.346743,
+      "units": 16430,
+      "entry_cost": 1.15,
+      "opened_at": "2026-06-19T00:00:00+00:00"
+    },
+    "USDJPY=X": {
+      "pair": "USDJPY=X",
+      "dir": 1,
+      "entry": 161.281994,
+      "stop": 160.193016,
+      "target": 162.897961,
+      "units": 291,
+      "entry_cost": 2.04,
+      "opened_at": "2026-06-19T00:00:00+00:00"
     }
   },
-  "closed": [],
+  "closed": [
+    {
+      "pair": "EURUSD=X",
+      "dir": 1,
+      "entry": 1.157344,
+      "stop": 1.145378,
+      "target": 1.175117,
+      "units": 25071,
+      "opened_at": "2026-06-12T00:00:00+00:00",
+      "exit": 1.145308,
+      "pnl": -303.51,
+      "cost": 3.51,
+      "closed_at": "2026-06-19T00:00:00+00:00",
+      "reason": "stop"
+    },
+    {
+      "pair": "GBPUSD=X",
+      "dir": -1,
+      "entry": 1.340718,
+      "stop": 1.354531,
+      "target": 1.320173,
+      "units": 21550,
+      "opened_at": "2026-06-14T00:00:00+00:00",
+      "exit": 1.320243,
+      "pnl": 439.73,
+      "cost": 3.02,
+      "closed_at": "2026-06-19T00:00:00+00:00",
+      "reason": "target"
+    },
+    {
+      "pair": "USDJPY=X",
+      "dir": 1,
+      "entry": 160.191998,
+      "stop": 159.384312,
+      "target": 161.386026,
+      "units": 371,
+      "opened_at": "2026-06-14T00:00:00+00:00",
+      "exit": 161.37902599999998,
+      "pnl": 440.36,
+      "cost": 2.62,
+      "closed_at": "2026-06-19T00:00:00+00:00",
+      "reason": "target"
+    }
+  ],
   "history": [
     {
       "t": "2026-06-14T18:23:27+00:00",
@@ -73,7 +119,15 @@
       "balance": 10000.0,
       "equity": 9988.31,
       "open": 6
+    },
+    {
+      "t": "2026-06-19T03:51:31+00:00",
+      "balance": 10576.58,
+      "equity": 11517.39,
+      "open": 6
     }
   ],
-  "created": "2026-06-14T18:23:25+00:00"
+  "created": "2026-06-14T18:23:25+00:00",
+  "costs_paid": 9.149910000002532,
+  "last_bar": "2026-06-19T00:00:00+00:00"
 }
